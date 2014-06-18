@@ -406,13 +406,13 @@ static void InterpColors(ui8_t interpColor[MAX_SUBSETS][MAX_INTERPS][4], ui8_t c
 	alphaIndexBits = indexSelection ? indexBits : (index2Bits ? index2Bits : indexBits);
 
 	for (subset = 0; subset < numSubsets; subset++)
+	{
 		for (i = 0; i < BIT_SHIFT(rgbIndexBits); i++)
 			Interp64Rgb(interpColor[subset][i], color[subset][0], color[subset][1], interpFactors[rgbIndexBits - 2][i]);
 
-	if (alphaIndexBits)
-		for (subset = 0; subset < numSubsets; subset++)
-			for (i = 0; i < BIT_SHIFT(alphaIndexBits); i++)
-				Interp64Alpha(interpColor[subset][i], color[subset][0], color[subset][1], interpFactors[alphaIndexBits - 2][i]);
+		for (i = 0; i < BIT_SHIFT(alphaIndexBits); i++)
+			Interp64Alpha(interpColor[subset][i], color[subset][0], color[subset][1], interpFactors[alphaIndexBits - 2][i]);
+	}
 }
 
 static void CopyRGB(ui8_t out[4], const ui8_t in[4])
@@ -433,7 +433,7 @@ static void CopyRGBA(ui8_t out[4], const ui8_t in[4])
 static void DecodeIndexes(ui8_t *rgbaOut, void (*copyFunc)(ui8_t out[4], const ui8_t in[4]), const ui8_t *blockIn, int *bitPos, ui8_t interpColor[MAX_SUBSETS][MAX_INTERPS][4], int numSubsets, int partition, int indexBits)
 {
 	int i, subset, anchorIndex, colorIndex;
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
 
 	for (i = 0; i < 16; i++)
 	{
@@ -535,15 +535,6 @@ static void Ycbcr32fToRgb8(ui8_t rgb8[3], const float ycbcr32f[3])
 	
 }
 
-static float Rgb8ToY(const ui8_t rgb8[3])
-{
-	float rgb32f[3];
-
-	Vec3Scale(rgb32f, 1.0f / 255.0f, rgb8);
-
-	return 0.2125f * rgb32f[0] + 0.7154f * rgb32f[1] + 0.0721f * rgb32f[2];
-}
-
 static float DistanceBetweenYcbcr(float ycbcr1[3], float ycbcr2[3])
 {
 	float d[3];
@@ -578,92 +569,139 @@ static float DistanceBetweenAlpha(const ui8_t *color1, const ui8_t *color2)
 	return ABS(color1[3] - color2[3]);
 }
 
+static float CalcVariance(const ui8_t *rgbaIn)
+{
+	float minYcbcr[3], maxYcbcr[3], rangeYcbcr[3];
+	int i, component;
+
+	Vec3Identity(minYcbcr);
+	Vec3Clear(maxYcbcr);
+
+	for (i = 0; i < 16; i++)
+	{
+		float pixelYcbcr[3];
+
+		Rgb8ToYcbcr32f(pixelYcbcr, &rgbaIn[i*4]);
+
+		for (component = 0; component < 3; component++)
+		{
+			if (minYcbcr[component] > pixelYcbcr[component]) minYcbcr[component] = pixelYcbcr[component];
+			if (maxYcbcr[component] < pixelYcbcr[component]) maxYcbcr[component] = pixelYcbcr[component];
+		}
+	}
+
+	Vec3Subtract(rangeYcbcr, maxYcbcr, minYcbcr);
+	return DotProduct3(rangeYcbcr, rangeYcbcr);
+}
+
 static void FindEndpointsRgb(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const ui8_t *rgbaIn, int numSubsets, int partition)
 {
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
 	int subset;
+
+	float blockYcbcrs[16][3];
+	float minYcbcr[numSubsets][3], maxYcbcr[numSubsets][3], avgYcbcr[numSubsets][3];
+	float endpointYcbcr[numSubsets][NUM_ENDPOINTS][3];
+	int i, component, majorAxes[numSubsets], count[numSubsets], count2[numSubsets];
+
+	for (i = 0; i < 16; i++)
+	{
+		Rgb8ToYcbcr32f(blockYcbcrs[i], &rgbaIn[i*4]);
+		blockYcbcrs[i][0] = pow(blockYcbcrs[i][0], 2.2);
+	}
 
 	for (subset = 0; subset < numSubsets; subset++)
 	{
-		float avgY, minY, maxY, ycbcr[2][3];
-		int count, count2;
-		int i;
+		Vec3Identity(minYcbcr[subset]);
+		Vec3Clear(maxYcbcr[subset]);
+		Vec3Clear(avgYcbcr[subset]);
+		count[subset] = 0;
+	}
 
-		// find min, max, and average Y
-		minY = 1.0f;
-		maxY = 0.0f;
-		avgY = 0.0f;
-		count = 0;
-		for (i = 0; i < 16; i++)
+	// find min, max, avg, range of ycbcr per subset
+	for (i = 0; i < 16; i++)
+	{
+		subset = subsetTable ? subsetTable[i] : 0;
+
+		for (component = 0; component < 3; component++)
 		{
-			float y;
-
-			if (subsetTable && subsetTable[i] != subset)
-				continue;
-
-			// ignore transparent pixels
-			if (rgbaIn[i*4+3] == 0)
-				continue;
-
-			y = Rgb8ToY(&rgbaIn[i*4]);
-			y = pow(y, 2.2);
-			minY = MIN(minY, y);
-			maxY = MAX(maxY, y);
-			avgY += y;
-			count++;
+			if (minYcbcr[subset][component] > blockYcbcrs[i][component]) minYcbcr[subset][component] = blockYcbcrs[i][component];
+			if (maxYcbcr[subset][component] < blockYcbcrs[i][component]) maxYcbcr[subset][component] = blockYcbcrs[i][component];
+			avgYcbcr[subset][component] += blockYcbcrs[i][component];
 		}
-		avgY /= (float)(MAX(count, 1));
+		count[subset]++;
+	}
 
-		// find average ycbcr below and above avgY
-		Vec3Clear(ycbcr[0]);
-		Vec3Clear(ycbcr[1]);
-		count = count2 = 0;
-		for (i = 0; i < 16; i++)
+	// finish averages and find major axes
+	for (subset = 0; subset < numSubsets; subset++)
+	{
+		float rangeYcbcr[3];
+
+		Vec3Scale(avgYcbcr[subset], 1.0f / MAX(count[subset], 1), avgYcbcr[subset]);
+
+		Vec3Subtract(rangeYcbcr, maxYcbcr[subset], minYcbcr[subset]);
+
+		// force major axis to luminance unless there's almost no lumi difference
+		majorAxes[subset] = 0;
+		if (rangeYcbcr[0] < 0.001f)
 		{
-			float currYcbcr[3];
+			majorAxes[subset] = 1;
+			if (rangeYcbcr[2] > rangeYcbcr[1])
+				majorAxes[subset] = 2;
+		}
+	}
 
-			if (subsetTable && subsetTable[i] != subset)
-				continue;
+	for (subset = 0; subset < numSubsets; subset++)
+	{
+		Vec3Clear(endpointYcbcr[subset][0]);
+		Vec3Clear(endpointYcbcr[subset][1]);
+		count[subset] = count2[subset] = 0;
+	}
 
-			// ignore transparent pixels
-			if (rgbaIn[i*4+3] == 0)
-				continue;
+	// find average color on either side of average of major axis
+	for (i = 0; i < 16; i++)
+	{
+		int majorAxis;
+		subset = subsetTable ? subsetTable[i] : 0;
 
-			Rgb8ToYcbcr32f(currYcbcr, &rgbaIn[i*4]);
-			currYcbcr[0] = pow(currYcbcr[0], 2.2);
+		majorAxis = majorAxes[subset];
 
-			if (currYcbcr[0] <= avgY)
-			{
-				Vec3Add(ycbcr[0], ycbcr[0], currYcbcr);
-				count++;
-			}
-
-			if (currYcbcr[0] >= avgY)
-			{
-				Vec3Add(ycbcr[1], ycbcr[1], currYcbcr);
-				count2++;
-			}
+		if (blockYcbcrs[i][majorAxis] <= avgYcbcr[subset][majorAxis])
+		{
+			Vec3Add(endpointYcbcr[subset][0], endpointYcbcr[subset][0], blockYcbcrs[i]);
+			count[subset]++;
 		}
 
-		Vec3Scale(ycbcr[0], 1.0f / MAX(count,  1), ycbcr[0]);
-		Vec3Scale(ycbcr[1], 1.0f / MAX(count2, 1), ycbcr[1]);
+		if (blockYcbcrs[i][majorAxis] >= avgYcbcr[subset][majorAxis])
+		{
+			Vec3Add(endpointYcbcr[subset][1], endpointYcbcr[subset][1], blockYcbcrs[i]);
+			count2[subset]++;
+		}
+	}
 
-		// nudge Ys away from center
-		ycbcr[0][0] = minY * 0.5f + ycbcr[0][0] * 0.5f;
-		ycbcr[1][0] = maxY * 0.5f + ycbcr[1][0] * 0.5f;
+	for (subset = 0; subset < numSubsets; subset++)
+	{
+		int majorAxis = majorAxes[subset];
 
-		ycbcr[0][0] = pow(ycbcr[0][0], 1.0/2.2);
-		ycbcr[1][0] = pow(ycbcr[1][0], 1.0/2.2);
+		Vec3Scale(endpointYcbcr[subset][0], 1.0f / MAX(count[subset],  1), endpointYcbcr[subset][0]);
+		Vec3Scale(endpointYcbcr[subset][1], 1.0f / MAX(count2[subset], 1), endpointYcbcr[subset][1]);
+
+		// nudge major axis away from center
+		endpointYcbcr[subset][0][majorAxis] = minYcbcr[subset][majorAxis] * 0.5f + endpointYcbcr[subset][0][majorAxis] * 0.5f;
+		endpointYcbcr[subset][1][majorAxis] = maxYcbcr[subset][majorAxis] * 0.5f + endpointYcbcr[subset][1][majorAxis] * 0.5f;
+
+		endpointYcbcr[subset][0][0] = pow(endpointYcbcr[subset][0][0], 1.0f/2.2f);
+		endpointYcbcr[subset][1][0] = pow(endpointYcbcr[subset][1][0], 1.0f/2.2f);
 
 		// convert ycbcr to endpoint colors
-		Ycbcr32fToRgb8(colors[subset][0], ycbcr[0]);
-		Ycbcr32fToRgb8(colors[subset][1], ycbcr[1]);
+		Ycbcr32fToRgb8(colors[subset][0], endpointYcbcr[subset][0]);
+		Ycbcr32fToRgb8(colors[subset][1], endpointYcbcr[subset][1]);
 	}
 }
 
 static void FindEndpointsAlpha(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const ui8_t *rgbaIn, int numSubsets, int partition)
 {
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
 	int subset, i;
 
 	for (subset = 0; subset < numSubsets; subset++)
@@ -683,9 +721,9 @@ static void FindEndpointsAlpha(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], cons
 
 static void EncodeIndexes(int indexes[16], int indexBits, const ui8_t *rgbaIn, ui8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4], float (*compFunc)(const ui8_t *a, const ui8_t *b), int numSubsets, int partition)
 {
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
 	int i, j;
-	
+
 	if (!indexBits)
 		return;
 
@@ -716,7 +754,7 @@ static void CorrectEndpoints(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t 
 {
 	int subset, endpoint, component, maxComponent;
 	int cBits[4] = {colorBits, colorBits, colorBits, alphaBits};
-	
+
 	maxComponent = alphaBits ? 4 : 3;
 
 	if (pBitsMode == 1)
@@ -756,25 +794,6 @@ static void CorrectEndpoints(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t 
 					colors[subset][endpoint][component] |= pBits[subset][endpoint] << (7 - cBits[component]);
 }
 
-static void InterpEndpoints(ui8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4], ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], int numSubsets, int alphaBits, int indexBits, int index2Bits, int indexSelection)
-{
-	int subset, i;
-	int rgbIndexBits, alphaIndexBits;
-
-	rgbIndexBits = indexSelection ? index2Bits : indexBits;
-	alphaIndexBits = indexSelection ? indexBits : (index2Bits ? index2Bits : indexBits);
-
-	for (subset = 0; subset < numSubsets; subset++)
-	{
-		for (i = 0; i < BIT_SHIFT(rgbIndexBits); i++)
-			Interp64Rgb(interpColors[subset][i], colors[subset][0], colors[subset][1], interpFactors[rgbIndexBits - 2][i]);
-
-		if (alphaIndexBits)
-			for (i = 0; i < BIT_SHIFT(alphaIndexBits); i++)
-				Interp64Alpha(interpColors[subset][i], colors[subset][0], colors[subset][1], interpFactors[alphaIndexBits - 2][i]);
-	}
-}
-
 static void SwapRgb(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset)
 {
 	ui8_t swap;
@@ -805,7 +824,7 @@ static void SwapAlpha(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[M
 
 static void FixAnchorIndexes(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int indexes[16], int numSubsets, int partition, int indexBits, void (*swapFunc)(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset))
 {
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
 	int subset, i;
 
 	if (!indexBits)
@@ -845,18 +864,17 @@ static void WritePBits(ui8_t *blockOut, int *bitPos, ui8_t pBits[MAX_SUBSETS][NU
 {
 	int subset, endpoint;
 
-	if (pBitMode == 1)
-		for (subset = 0; subset < numSubsets; subset++)
-			for (endpoint = 0; endpoint < NUM_ENDPOINTS; endpoint++)
+	if (!pBitMode)
+		return;
+
+	for (subset = 0; subset < numSubsets; subset++)
+		for (endpoint = 0; endpoint < 3 - pBitMode; endpoint++)
 				SetBits(blockOut, bitPos, pBits[subset][endpoint], 1);
-	else if (pBitMode == 2)
-		for (subset = 0; subset < numSubsets; subset++)
-			SetBits(blockOut, bitPos, pBits[subset][0], 1);
 }
 
 static void WriteIndexes(ui8_t *blockOut, int *bitPos, int indexes[16], int numSubsets, int partition, int indexBits)
 {
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
 	int i;
 
 	if (!indexBits)
@@ -921,7 +939,7 @@ int PickPartition(const ui8_t *rgbaIn, int numSubsets, int partitionBits, float 
 			bestDistance = distance;
 		}
 	}
-	
+
 	if (distanceOut)
 		*distanceOut = bestDistance * (numSubsets == 3 ? 0.35f : 1.0f);
 
@@ -952,14 +970,14 @@ static void EncodeBptcBlockMode(ui8_t *blockOut, const ui8_t *rgbaIn, int mode)
 	indexBits = modeInfo[mode][MODEINFO_INDEX_BITS_PER_ELEMENT];
 	index2Bits = modeInfo[mode][MODEINFO_SECONDARY_INDEX_BITS_PER_ELEMENT];
 
-	partition = PickPartition(rgbaIn, numSubsets, partitionBits, NULL);
+	partition = PickPartition(rgbaIn, numSubsets, partitionBits, 0);
 	rotation = 0; // FIXME: use rotationBits
 	indexSelection = (mode == 4) ? 1 : 0; // FIXME: use indexSelectionBits
 
 	FindEndpointsRgb(colors, rgbaIn, numSubsets, partition);
 	FindEndpointsAlpha(colors, rgbaIn, numSubsets, partition);
 	CorrectEndpoints(colors, pBits, numSubsets, colorBits, alphaBits, pBitMode);
-	InterpEndpoints(interpColors, colors, numSubsets, alphaBits, indexBits, index2Bits, indexSelection);
+	InterpColors(interpColors, colors, numSubsets, indexSelection, indexBits, index2Bits);
 
 	EncodeIndexes(indexes,  indexBits,  rgbaIn, interpColors, mode > 5 ? DistanceBetweenRgba8 : (indexSelection ? DistanceBetweenAlpha : DistanceBetweenRgb8), numSubsets, partition);
 	EncodeIndexes(indexes2, index2Bits, rgbaIn, interpColors, indexSelection ? DistanceBetweenRgb8 : DistanceBetweenAlpha, numSubsets, partition);
@@ -996,7 +1014,7 @@ void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 		if (rgbaIn[i*4+3] != 0)
 			fullyTransparent = 0;
 		
-		if (!Vec3Equal(&rgba[0], &rgba[i*4]))
+		if (!Vec3Equal(&rgbaIn[0], &rgbaIn[i*4]))
 		{
 			if (singleColor)
 			{
@@ -1005,7 +1023,7 @@ void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 			}
 			else
 			{
-				if (!Vec3Equal(&rgba[secondColor*4], &rgba[i*4]))
+				if (!Vec3Equal(&rgbaIn[secondColor*4], &rgbaIn[i*4]))
 					secondColor = 0;
 			}
 		}
@@ -1089,7 +1107,7 @@ void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 		// first index is 0, because first color is at 0
 		SetBits(blockOut, &bitPos, 0, 3);
 		for (i = 1; i < 16; i++)
-			if (Vec3Equal(&rgba[0], &rgba[i*4]))
+			if (Vec3Equal(&rgbaIn[0], &rgbaIn[i*4]))
 				SetBits(blockOut, &bitPos, 0, 4);
 			else
 				SetBits(blockOut, &bitPos, 0xF, 4);
@@ -1100,27 +1118,7 @@ void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 	// opaque, pick an opaque mode based on color variance
 	if (fullyOpaque)
 	{
-		float minYcbcr[3], maxYcbcr[3], diff[3], variance;
-		int i, component;
-
-		Vec3Identity(minYcbcr);
-		Vec3Clear(maxYcbcr);
-
-		for (i = 0; i < 16; i++)
-		{
-			float pixelYcbcr[3];
-
-			Rgb8ToYcbcr32f(pixelYcbcr, &rgbaIn[i*4]);
-			
-			for (component = 0; component < 3; component++)
-			{
-				if (minYcbcr[component] > pixelYcbcr[component]) minYcbcr[component] = pixelYcbcr[component];
-				if (maxYcbcr[component] < pixelYcbcr[component]) maxYcbcr[component] = pixelYcbcr[component];
-			}
-		}
-
-		Vec3Subtract(diff, maxYcbcr, minYcbcr);
-		variance = DotProduct3(diff, diff);
+		float variance = CalcVariance(rgbaIn);
 
 		if (variance < 0.6f)
 			EncodeBptcBlockMode(blockOut, rgbaIn, 3);
