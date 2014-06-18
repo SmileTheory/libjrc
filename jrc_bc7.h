@@ -6,9 +6,11 @@ void jrcEncodeBc7Block(unsigned char *blockOut, const unsigned char *rgbaIn);
 
 #endif
 #ifdef JRC_BC7_IMPLEMENTATION
-#include <stdint.h>
-#include <stdio.h>
 #include <math.h>
+
+typedef unsigned char  ui8_t;
+typedef unsigned short ui16_t;
+typedef unsigned int   ui32_t;
 
 #define BIT_MASK(x)  (0xFFFFFFFF >> (32 - (x)))
 #define BIT_SHIFT(x) (1 << (x))
@@ -54,7 +56,7 @@ enum
 	MODEINFO_NUM_MODEINFOS
 };
 
-static uint8_t modeInfo[NUM_MODES][MODEINFO_NUM_MODEINFOS] =
+static ui8_t modeInfo[NUM_MODES][MODEINFO_NUM_MODEINFOS] =
 //  Mode NS PB RB ISB CB AB EPB SPB IB IB2
 //  ---- -- -- -- --- -- -- --- --- -- ---
   {{0,   3, 4, 0, 0,  4, 0, 1,  0,  3, 0},
@@ -66,7 +68,7 @@ static uint8_t modeInfo[NUM_MODES][MODEINFO_NUM_MODEINFOS] =
    {6,   1, 0, 0, 0,  7, 7, 1,  0,  4, 0},
    {7,   2, 6, 0, 0,  5, 5, 1,  0,  2, 0}};
 
-static uint8_t partitionSubsets[2][64][16] = 
+static ui8_t partitionSubsets[2][64][16] = 
 	{{{0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1},
 	  {0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1},
 	  {0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1},
@@ -196,7 +198,7 @@ static uint8_t partitionSubsets[2][64][16] =
 	  {0,1,0,1,2,2,2,2,2,2,2,2,2,2,2,2},
 	  {0,1,1,1,2,0,1,1,2,2,0,1,2,2,2,0}}};
 
-static uint8_t anchors[3][64] = 
+static ui8_t anchors[3][64] = 
 	{{15,15,15,15,15,15,15,15,
 	  15,15,15,15,15,15,15,15,
 	  15, 2, 8, 2, 2, 8, 8,15,
@@ -222,13 +224,13 @@ static uint8_t anchors[3][64] =
 	  15, 3,15,15,15,15,15,15,
 	  15,15,15,15, 3,15,15, 8}};
 
-static uint8_t interpFactors[3][16] =
+static ui8_t interpFactors[3][16] =
 	{{0, 21, 43, 64,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
 	 {0,  9, 18, 27, 37, 46, 55, 64,  0,  0,  0,  0,  0,  0,  0,  0},
 	 {0,  4,  9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64}};
 
 
-static uint32_t GetBits(const uint8_t *in, int *offset, int numBits)
+static ui32_t GetBits(const ui8_t *in, int *offset, int numBits)
 {
 	int offMod, result, currPos;
 
@@ -261,7 +263,7 @@ static uint32_t GetBits(const uint8_t *in, int *offset, int numBits)
 	return result;
 }
 
-static void SetBits(uint8_t *out, int *offset, uint32_t value, int numBits)
+static void SetBits(ui8_t *out, int *offset, ui32_t value, int numBits)
 {
 	int offMod;
 
@@ -304,7 +306,7 @@ static void SetBits(uint8_t *out, int *offset, uint32_t value, int numBits)
 	}
 }
 
-static void DecodeColors(uint8_t color[MAX_SUBSETS][NUM_ENDPOINTS][4], const uint8_t *blockIn, int *bitPos, int numSubsets, int pBitMode, int colorBits, int alphaBits)
+static void DecodeColors(ui8_t color[MAX_SUBSETS][NUM_ENDPOINTS][4], const ui8_t *blockIn, int *bitPos, int numSubsets, int pBitMode, int colorBits, int alphaBits)
 {
 	int component, subset, endpoint;
 
@@ -328,9 +330,9 @@ static void DecodeColors(uint8_t color[MAX_SUBSETS][NUM_ENDPOINTS][4], const uin
 		for (subset = 0; subset < numSubsets; subset++)
 			for (endpoint = 0; endpoint < NUM_ENDPOINTS; endpoint++)
 			{
-				uint8_t b = GetBits(blockIn, bitPos, 1);
-				uint8_t cpb = b << (7 - colorBits);
-				uint8_t apb = b << (7 - alphaBits);
+				ui8_t b = GetBits(blockIn, bitPos, 1);
+				ui8_t cpb = b << (7 - colorBits);
+				ui8_t apb = b << (7 - alphaBits);
 
 				color[subset][endpoint][0] |= cpb;
 				color[subset][endpoint][1] |= cpb;
@@ -342,9 +344,9 @@ static void DecodeColors(uint8_t color[MAX_SUBSETS][NUM_ENDPOINTS][4], const uin
 	{
 		for (subset = 0; subset < numSubsets; subset++)
 		{
-			uint8_t b = GetBits(blockIn, bitPos, 1);
-			uint8_t cpb = b << (7 - colorBits);
-			uint8_t apb = b << (7 - alphaBits);
+			ui8_t b = GetBits(blockIn, bitPos, 1);
+			ui8_t cpb = b << (7 - colorBits);
+			ui8_t apb = b << (7 - alphaBits);
 
 			for (endpoint = 0; endpoint < NUM_ENDPOINTS; endpoint++)
 			{
@@ -367,7 +369,7 @@ static void DecodeColors(uint8_t color[MAX_SUBSETS][NUM_ENDPOINTS][4], const uin
 		}
 }
 
-static void Interp64Rgb(uint8_t *r, uint8_t *x, uint8_t *y, int a)
+static void Interp64Rgb(ui8_t *r, ui8_t *x, ui8_t *y, int a)
 {
 	int b = 64 - a;
 	
@@ -376,14 +378,14 @@ static void Interp64Rgb(uint8_t *r, uint8_t *x, uint8_t *y, int a)
 	r[2] = (x[2] * b + y[2] * a + 32) >> 6;
 }
 
-static void Interp64Alpha(uint8_t *r, uint8_t *x, uint8_t *y, int a)
+static void Interp64Alpha(ui8_t *r, ui8_t *x, ui8_t *y, int a)
 {
 	int b = 64 - a;
 
 	r[3] = (x[3] * b + y[3] * a + 32) >> 6;
 }
 
-static void InterpColors(uint8_t interpColor[MAX_SUBSETS][MAX_INTERPS][4], uint8_t color[MAX_SUBSETS][NUM_ENDPOINTS][4], int numSubsets, int indexSelection, int indexBits, int index2Bits)
+static void InterpColors(ui8_t interpColor[MAX_SUBSETS][MAX_INTERPS][4], ui8_t color[MAX_SUBSETS][NUM_ENDPOINTS][4], int numSubsets, int indexSelection, int indexBits, int index2Bits)
 {
 	int rgbIndexBits, alphaIndexBits, subset, i;
 
@@ -399,19 +401,19 @@ static void InterpColors(uint8_t interpColor[MAX_SUBSETS][MAX_INTERPS][4], uint8
 			Interp64Alpha(interpColor[subset][i], color[subset][0], color[subset][1], interpFactors[alphaIndexBits - 2][i]);
 }
 
-static void CopyRGB(uint8_t out[4], const uint8_t in[4])
+static void CopyRGB(ui8_t out[4], const ui8_t in[4])
 {
 	out[0] = in[0];
 	out[1] = in[1];
 	out[2] = in[2];
 }
 
-static void CopyAlpha(uint8_t out[4], const uint8_t in[4])
+static void CopyAlpha(ui8_t out[4], const ui8_t in[4])
 {
 	out[3] = in[3];
 }
 
-static void CopyRGBA(uint8_t out[4], const uint8_t in[4])
+static void CopyRGBA(ui8_t out[4], const ui8_t in[4])
 {
 	out[0] = in[0];
 	out[1] = in[1];
@@ -419,10 +421,10 @@ static void CopyRGBA(uint8_t out[4], const uint8_t in[4])
 	out[3] = in[3];
 }
 
-static void DecodeIndexes(uint8_t *rgbaOut, void (*copyFunc)(uint8_t out[4], const uint8_t in[4]), const uint8_t *blockIn, int *bitPos, uint8_t interpColor[MAX_SUBSETS][MAX_INTERPS][4], int numSubsets, int partition, int indexBits)
+static void DecodeIndexes(ui8_t *rgbaOut, void (*copyFunc)(ui8_t out[4], const ui8_t in[4]), const ui8_t *blockIn, int *bitPos, ui8_t interpColor[MAX_SUBSETS][MAX_INTERPS][4], int numSubsets, int partition, int indexBits)
 {
 	int i, subset, anchorIndex, colorIndex;
-	uint8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
 
 	for (i = 0; i < 16; i++)
 	{
@@ -436,10 +438,10 @@ static void DecodeIndexes(uint8_t *rgbaOut, void (*copyFunc)(uint8_t out[4], con
 	}
 }
 
-void jrcDecodeBc7Block(uint8_t *rgbaOut, const uint8_t *blockIn)
+void jrcDecodeBc7Block(ui8_t *rgbaOut, const ui8_t *blockIn)
 {
-	uint8_t color[MAX_SUBSETS][NUM_ENDPOINTS][4];
-	uint8_t interpColor[MAX_SUBSETS][MAX_INTERPS][4];
+	ui8_t color[MAX_SUBSETS][NUM_ENDPOINTS][4];
+	ui8_t interpColor[MAX_SUBSETS][MAX_INTERPS][4];
 	int numSubsets, partition, rotation, indexSelection, colorBits;
 	int alphaBits, pBitMode, indexBits, index2Bits;
 	int mode, i;
@@ -488,7 +490,7 @@ void jrcDecodeBc7Block(uint8_t *rgbaOut, const uint8_t *blockIn)
 	if (rotation)
 		for (i = 0; i < 16; i++)
 		{
-			uint8_t newAlpha        = rgbaOut[i*4+rotation-1];
+			ui8_t newAlpha        = rgbaOut[i*4+rotation-1];
 			rgbaOut[i*4+rotation-1] = rgbaOut[i*4+3];
 			rgbaOut[i*4+3]          = newAlpha;
 		}
@@ -498,7 +500,7 @@ void jrcDecodeBc7Block(uint8_t *rgbaOut, const uint8_t *blockIn)
 // according to http://www.martinreddy.net/gfx/faqs/colorconv.faq
 //
 // Altered slightly to fit (0..1) and (-0.5..0.5)
-static void Rgb8ToYcbcr32f(float ycbcr32f[3], const uint8_t rgb8[3])
+static void Rgb8ToYcbcr32f(float ycbcr32f[3], const ui8_t rgb8[3])
 {
 	float rgb32f[3];
 
@@ -511,7 +513,7 @@ static void Rgb8ToYcbcr32f(float ycbcr32f[3], const uint8_t rgb8[3])
 	ycbcr32f[2] =  0.5000f * rgb32f[0] - 0.4542f * rgb32f[1] - 0.0458f * rgb32f[2];
 }
 
-static void Ycbcr32fToRgb8(uint8_t rgb8[3], const float ycbcr32f[3])
+static void Ycbcr32fToRgb8(ui8_t rgb8[3], const float ycbcr32f[3])
 {
 	float rgb32f[3];
 
@@ -526,7 +528,7 @@ static void Ycbcr32fToRgb8(uint8_t rgb8[3], const float ycbcr32f[3])
 	
 }
 
-static float Rgb8ToY(const uint8_t rgb8[3])
+static float Rgb8ToY(const ui8_t rgb8[3])
 {
 	float rgb32f[3];
 
@@ -548,7 +550,7 @@ static float DistanceBetweenYcbcr(float ycbcr1[3], float ycbcr2[3])
 	return d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
 }
 
-static float DistanceBetweenRgb8(const uint8_t *color1, const uint8_t *color2)
+static float DistanceBetweenRgb8(const ui8_t *color1, const ui8_t *color2)
 {
 	float ycbcr1[3], ycbcr2[3];
 
@@ -558,7 +560,7 @@ static float DistanceBetweenRgb8(const uint8_t *color1, const uint8_t *color2)
 	return DistanceBetweenYcbcr(ycbcr1, ycbcr2);
 }
 
-static float DistanceBetweenRgba8(const uint8_t *color1, const uint8_t *color2)
+static float DistanceBetweenRgba8(const ui8_t *color1, const ui8_t *color2)
 {
 	float ycbcr1[3], ycbcr2[3], alphaDiff;
 
@@ -570,14 +572,14 @@ static float DistanceBetweenRgba8(const uint8_t *color1, const uint8_t *color2)
 	return DistanceBetweenYcbcr(ycbcr1, ycbcr2) + alphaDiff;
 }
 
-static float DistanceBetweenAlpha(const uint8_t *color1, const uint8_t *color2)
+static float DistanceBetweenAlpha(const ui8_t *color1, const ui8_t *color2)
 {
 	return ABS(color1[3] - color2[3]);
 }
 
-static void FindEndpointsRgb(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const uint8_t *rgbaIn, int numSubsets, int partition)
+static void FindEndpointsRgb(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const ui8_t *rgbaIn, int numSubsets, int partition)
 {
-	uint8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
 	int subset;
 
 	for (subset = 0; subset < numSubsets; subset++)
@@ -658,9 +660,9 @@ static void FindEndpointsRgb(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], cons
 	}
 }
 
-static void FindEndpointsAlpha(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const uint8_t *rgbaIn, int numSubsets, int partition)
+static void FindEndpointsAlpha(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const ui8_t *rgbaIn, int numSubsets, int partition)
 {
-	uint8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
 	int subset, i;
 
 	for (subset = 0; subset < numSubsets; subset++)
@@ -679,9 +681,9 @@ static void FindEndpointsAlpha(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], co
 	}
 }
 
-static void EncodeIndexes(int indexes[16], int indexBits, const uint8_t *rgbaIn, uint8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4], float (*compFunc)(const uint8_t *a, const uint8_t *b), int numSubsets, int partition)
+static void EncodeIndexes(int indexes[16], int indexBits, const ui8_t *rgbaIn, ui8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4], float (*compFunc)(const ui8_t *a, const ui8_t *b), int numSubsets, int partition)
 {
-	uint8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
 	int i, j;
 	
 	if (!indexBits)
@@ -710,7 +712,7 @@ static void EncodeIndexes(int indexes[16], int indexBits, const uint8_t *rgbaIn,
 	}
 }
 
-static void CorrectEndpoints(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], uint8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int numSubsets, int colorBits, int alphaBits, int pBitsMode)
+static void CorrectEndpoints(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int numSubsets, int colorBits, int alphaBits, int pBitsMode)
 {
 	int subset, endpoint, component, maxComponent;
 	int cBits[4] = {colorBits, colorBits, colorBits, alphaBits};
@@ -754,7 +756,7 @@ static void CorrectEndpoints(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], uint
 					colors[subset][endpoint][component] |= pBits[subset][endpoint] << (7 - cBits[component]);
 }
 
-static void InterpEndpoints(uint8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4], uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], int numSubsets, int alphaBits, int indexBits, int index2Bits, int indexSelection)
+static void InterpEndpoints(ui8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4], ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], int numSubsets, int alphaBits, int indexBits, int index2Bits, int indexSelection)
 {
 	int subset, i;
 	int colorIndexBits, alphaIndexBits;
@@ -778,9 +780,9 @@ static void InterpEndpoints(uint8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4], u
 	}
 }
 
-static void SwapRgb(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], uint8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset)
+static void SwapRgb(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset)
 {
-	uint8_t swap;
+	ui8_t swap;
 
 	swap = colors[subset][0][0]; colors[subset][0][0] = colors[subset][1][0]; colors[subset][1][0] = swap;
 	swap = colors[subset][0][1]; colors[subset][0][1] = colors[subset][1][1]; colors[subset][1][1] = swap;
@@ -788,9 +790,9 @@ static void SwapRgb(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], uint8_t pBits
 	swap = pBits[subset][0];     pBits[subset][0] = pBits[subset][1];         pBits[subset][1] = swap;
 }
 
-static void SwapRgba(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], uint8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset)
+static void SwapRgba(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset)
 {
-	uint8_t swap;
+	ui8_t swap;
 
 	swap = colors[subset][0][0]; colors[subset][0][0] = colors[subset][1][0]; colors[subset][1][0] = swap;
 	swap = colors[subset][0][1]; colors[subset][0][1] = colors[subset][1][1]; colors[subset][1][1] = swap;
@@ -799,16 +801,16 @@ static void SwapRgba(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], uint8_t pBit
 	swap = pBits[subset][0];     pBits[subset][0] = pBits[subset][1];         pBits[subset][1] = swap;
 }
 
-static void SwapAlpha(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], uint8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset)
+static void SwapAlpha(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset)
 {
-	uint8_t swap;
+	ui8_t swap;
 
 	swap = colors[subset][0][3]; colors[subset][0][3] = colors[subset][1][3]; colors[subset][1][3] = swap;
 }
 
-static void FixAnchorIndexes(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], uint8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int indexes[16], int numSubsets, int partition, int indexBits, void (*swapFunc)(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], uint8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset))
+static void FixAnchorIndexes(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int indexes[16], int numSubsets, int partition, int indexBits, void (*swapFunc)(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset))
 {
-	uint8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
 	int subset, i;
 
 	if (!indexBits)
@@ -833,7 +835,7 @@ static void FixAnchorIndexes(uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], uint
 	}
 }
 
-static void WriteRgba(uint8_t *blockOut, int *bitPos, uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], int numSubsets, int colorBits, int alphaBits)
+static void WriteRgba(ui8_t *blockOut, int *bitPos, ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], int numSubsets, int colorBits, int alphaBits)
 {
 	int component, subset, endpoint;
 	int cBits[4] = {colorBits, colorBits, colorBits, alphaBits};
@@ -844,7 +846,7 @@ static void WriteRgba(uint8_t *blockOut, int *bitPos, uint8_t colors[MAX_SUBSETS
 				SetBits(blockOut, bitPos, colors[subset][endpoint][component] >> (8 - cBits[component]), cBits[component]);
 }
 
-static void WritePBits(uint8_t *blockOut, int *bitPos, uint8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int numSubsets, int pBitMode)
+static void WritePBits(ui8_t *blockOut, int *bitPos, ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int numSubsets, int pBitMode)
 {
 	int subset, endpoint;
 
@@ -857,9 +859,9 @@ static void WritePBits(uint8_t *blockOut, int *bitPos, uint8_t pBits[MAX_SUBSETS
 			SetBits(blockOut, bitPos, pBits[subset][0], 1);
 }
 
-static void WriteIndexes(uint8_t *blockOut, int *bitPos, int indexes[16], int numSubsets, int partition, int indexBits)
+static void WriteIndexes(ui8_t *blockOut, int *bitPos, int indexes[16], int numSubsets, int partition, int indexBits)
 {
-	uint8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
+	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : NULL;
 	int i;
 
 	if (!indexBits)
@@ -875,7 +877,7 @@ static void WriteIndexes(uint8_t *blockOut, int *bitPos, int indexes[16], int nu
 }
 
 // pick a partition based on the largest distance between average ycbcr of subsets
-int PickPartition(const uint8_t *rgbaIn, int numSubsets, int partitionBits, float *distanceOut)
+int PickPartition(const ui8_t *rgbaIn, int numSubsets, int partitionBits, float *distanceOut)
 {
 	int partition, numPartitions, bestPartition, i;
 	float bestDistance, blockYcbcrs[16][3];
@@ -893,7 +895,7 @@ int PickPartition(const uint8_t *rgbaIn, int numSubsets, int partitionBits, floa
 
 	for (partition = 0; partition < numPartitions; partition++)
 	{
-		uint8_t *subsetTable = partitionSubsets[numSubsets - 2][partition];
+		ui8_t *subsetTable = partitionSubsets[numSubsets - 2][partition];
 		float distance, avgYcbcrs[MAX_SUBSETS][3];
 		int counts[MAX_SUBSETS];
 		int subset;
@@ -931,11 +933,11 @@ int PickPartition(const uint8_t *rgbaIn, int numSubsets, int partitionBits, floa
 	return bestPartition;
 }
 
-static void EncodeBptcBlockMode(uint8_t *blockOut, const uint8_t *rgbaIn, int mode)
+static void EncodeBptcBlockMode(ui8_t *blockOut, const ui8_t *rgbaIn, int mode)
 {
-	uint8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4];
-	uint8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4];
-	uint8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS];
+	ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4];
+	ui8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4];
+	ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS];
 	int indexes[16], indexes2[16];
 
 	int numSubsets, partitionBits, rotationBits, indexSelectionBits, colorBits;
@@ -981,7 +983,7 @@ static void EncodeBptcBlockMode(uint8_t *blockOut, const uint8_t *rgbaIn, int mo
 	WriteIndexes(blockOut, &bitPos, indexes2, numSubsets, partition, index2Bits);
 }
 
-void jrcEncodeBc7Block(uint8_t *blockOut, const uint8_t *rgbaIn)
+void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 {
 	int fullyOpaque, fullyTransparent, singleColor, singleAlpha;
 	int i, secondColor;
@@ -1041,7 +1043,7 @@ void jrcEncodeBc7Block(uint8_t *blockOut, const uint8_t *rgbaIn)
 		needInterp = 0;
 		for (component = 0; component < 4; component++)
 		{
-			uint8_t c7 = rgbaIn[component] >> 1;
+			ui8_t c7 = rgbaIn[component] >> 1;
 
 			if ((rgbaIn[component] & 1) && c7)
 			{
