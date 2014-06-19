@@ -50,6 +50,8 @@ typedef unsigned int   ui32_t;
 #define NUM_ENDPOINTS 2
 #define MAX_SUBSETS 3
 #define MAX_INTERPS 16
+#define MAX_PARTITIONS 64
+#define NUM_PIXELS 16
 
 // The following tables are all from http://www.opengl.org/registry/specs/ARB/texture_compression_bptc.txt
 
@@ -81,137 +83,138 @@ static ui8_t modeInfo[NUM_MODES][MODEINFO_NUM_MODEINFOS] =
    {6,   1, 0, 0, 0,  7, 7, 1,  0,  4, 0},
    {7,   2, 6, 0, 0,  5, 5, 1,  0,  2, 0}};
 
-static ui8_t partitionSubsets[2][64][16] = 
-	{{{0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1},
-	  {0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1},
-	  {0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1},
-	  {0,0,0,1,0,0,1,1,0,0,1,1,0,1,1,1},
-	  {0,0,0,0,0,0,0,1,0,0,0,1,0,0,1,1},
-	  {0,0,1,1,0,1,1,1,0,1,1,1,1,1,1,1},
-	  {0,0,0,1,0,0,1,1,0,1,1,1,1,1,1,1},
-	  {0,0,0,0,0,0,0,1,0,0,1,1,0,1,1,1},
-	  {0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,1},
-	  {0,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1},
-	  {0,0,0,0,0,0,0,1,0,1,1,1,1,1,1,1},
-	  {0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1},
-	  {0,0,0,1,0,1,1,1,1,1,1,1,1,1,1,1},
-	  {0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1},
-	  {0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1},
-	  {0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1},
-	  {0,0,0,0,1,0,0,0,1,1,1,0,1,1,1,1},
-	  {0,1,1,1,0,0,0,1,0,0,0,0,0,0,0,0},
-	  {0,0,0,0,0,0,0,0,1,0,0,0,1,1,1,0},
-	  {0,1,1,1,0,0,1,1,0,0,0,1,0,0,0,0},
-	  {0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0},
-	  {0,0,0,0,1,0,0,0,1,1,0,0,1,1,1,0},
-	  {0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0},
-	  {0,1,1,1,0,0,1,1,0,0,1,1,0,0,0,1},
-	  {0,0,1,1,0,0,0,1,0,0,0,1,0,0,0,0},
-	  {0,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0},
-	  {0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0},
-	  {0,0,1,1,0,1,1,0,0,1,1,0,1,1,0,0},
-	  {0,0,0,1,0,1,1,1,1,1,1,0,1,0,0,0},
-	  {0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0},
-	  {0,1,1,1,0,0,0,1,1,0,0,0,1,1,1,0},
-	  {0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0},
-	  {0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1},
-	  {0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1},
-	  {0,1,0,1,1,0,1,0,0,1,0,1,1,0,1,0},
-	  {0,0,1,1,0,0,1,1,1,1,0,0,1,1,0,0},
-	  {0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0},
-	  {0,1,0,1,0,1,0,1,1,0,1,0,1,0,1,0},
-	  {0,1,1,0,1,0,0,1,0,1,1,0,1,0,0,1},
-	  {0,1,0,1,1,0,1,0,1,0,1,0,0,1,0,1},
-	  {0,1,1,1,0,0,1,1,1,1,0,0,1,1,1,0},
-	  {0,0,0,1,0,0,1,1,1,1,0,0,1,0,0,0},
-	  {0,0,1,1,0,0,1,0,0,1,0,0,1,1,0,0},
-	  {0,0,1,1,1,0,1,1,1,1,0,1,1,1,0,0},
-	  {0,1,1,0,1,0,0,1,1,0,0,1,0,1,1,0},
-	  {0,0,1,1,1,1,0,0,1,1,0,0,0,0,1,1},
-	  {0,1,1,0,0,1,1,0,1,0,0,1,1,0,0,1},
-	  {0,0,0,0,0,1,1,0,0,1,1,0,0,0,0,0},
-	  {0,1,0,0,1,1,1,0,0,1,0,0,0,0,0,0},
-	  {0,0,1,0,0,1,1,1,0,0,1,0,0,0,0,0},
-	  {0,0,0,0,0,0,1,0,0,1,1,1,0,0,1,0},
-	  {0,0,0,0,0,1,0,0,1,1,1,0,0,1,0,0},
-	  {0,1,1,0,1,1,0,0,1,0,0,1,0,0,1,1},
-	  {0,0,1,1,0,1,1,0,1,1,0,0,1,0,0,1},
-	  {0,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0},
-	  {0,0,1,1,1,0,0,1,1,1,0,0,0,1,1,0},
-	  {0,1,1,0,1,1,0,0,1,1,0,0,1,0,0,1},
-	  {0,1,1,0,0,0,1,1,0,0,1,1,1,0,0,1},
-	  {0,1,1,1,1,1,1,0,1,0,0,0,0,0,0,1},
-	  {0,0,0,1,1,0,0,0,1,1,1,0,0,1,1,1},
-	  {0,0,0,0,1,1,1,1,0,0,1,1,0,0,1,1},
-	  {0,0,1,1,0,0,1,1,1,1,1,1,0,0,0,0},
-	  {0,0,1,0,0,0,1,0,1,1,1,0,1,1,1,0},
-	  {0,1,0,0,0,1,0,0,0,1,1,1,0,1,1,1}},
-	 {{0,0,1,1,0,0,1,1,0,2,2,1,2,2,2,2},
-	  {0,0,0,1,0,0,1,1,2,2,1,1,2,2,2,1},
-	  {0,0,0,0,2,0,0,1,2,2,1,1,2,2,1,1},
-	  {0,2,2,2,0,0,2,2,0,0,1,1,0,1,1,1},
-	  {0,0,0,0,0,0,0,0,1,1,2,2,1,1,2,2},
-	  {0,0,1,1,0,0,1,1,0,0,2,2,0,0,2,2},
-	  {0,0,2,2,0,0,2,2,1,1,1,1,1,1,1,1},
-	  {0,0,1,1,0,0,1,1,2,2,1,1,2,2,1,1},
-	  {0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2},
-	  {0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2},
-	  {0,0,0,0,1,1,1,1,2,2,2,2,2,2,2,2},
-	  {0,0,1,2,0,0,1,2,0,0,1,2,0,0,1,2},
-	  {0,1,1,2,0,1,1,2,0,1,1,2,0,1,1,2},
-	  {0,1,2,2,0,1,2,2,0,1,2,2,0,1,2,2},
-	  {0,0,1,1,0,1,1,2,1,1,2,2,1,2,2,2},
-	  {0,0,1,1,2,0,0,1,2,2,0,0,2,2,2,0},
-	  {0,0,0,1,0,0,1,1,0,1,1,2,1,1,2,2},
-	  {0,1,1,1,0,0,1,1,2,0,0,1,2,2,0,0},
-	  {0,0,0,0,1,1,2,2,1,1,2,2,1,1,2,2},
-	  {0,0,2,2,0,0,2,2,0,0,2,2,1,1,1,1},
-	  {0,1,1,1,0,1,1,1,0,2,2,2,0,2,2,2},
-	  {0,0,0,1,0,0,0,1,2,2,2,1,2,2,2,1},
-	  {0,0,0,0,0,0,1,1,0,1,2,2,0,1,2,2},
-	  {0,0,0,0,1,1,0,0,2,2,1,0,2,2,1,0},
-	  {0,1,2,2,0,1,2,2,0,0,1,1,0,0,0,0},
-	  {0,0,1,2,0,0,1,2,1,1,2,2,2,2,2,2},
-	  {0,1,1,0,1,2,2,1,1,2,2,1,0,1,1,0},
-	  {0,0,0,0,0,1,1,0,1,2,2,1,1,2,2,1},
-	  {0,0,2,2,1,1,0,2,1,1,0,2,0,0,2,2},
-	  {0,1,1,0,0,1,1,0,2,0,0,2,2,2,2,2},
-	  {0,0,1,1,0,1,2,2,0,1,2,2,0,0,1,1},
-	  {0,0,0,0,2,0,0,0,2,2,1,1,2,2,2,1},
-	  {0,0,0,0,0,0,0,2,1,1,2,2,1,2,2,2},
-	  {0,2,2,2,0,0,2,2,0,0,1,2,0,0,1,1},
-	  {0,0,1,1,0,0,1,2,0,0,2,2,0,2,2,2},
-	  {0,1,2,0,0,1,2,0,0,1,2,0,0,1,2,0},
-	  {0,0,0,0,1,1,1,1,2,2,2,2,0,0,0,0},
-	  {0,1,2,0,1,2,0,1,2,0,1,2,0,1,2,0},
-	  {0,1,2,0,2,0,1,2,1,2,0,1,0,1,2,0},
-	  {0,0,1,1,2,2,0,0,1,1,2,2,0,0,1,1},
-	  {0,0,1,1,1,1,2,2,2,2,0,0,0,0,1,1},
-	  {0,1,0,1,0,1,0,1,2,2,2,2,2,2,2,2},
-	  {0,0,0,0,0,0,0,0,2,1,2,1,2,1,2,1},
-	  {0,0,2,2,1,1,2,2,0,0,2,2,1,1,2,2},
-	  {0,0,2,2,0,0,1,1,0,0,2,2,0,0,1,1},
-	  {0,2,2,0,1,2,2,1,0,2,2,0,1,2,2,1},
-	  {0,1,0,1,2,2,2,2,2,2,2,2,0,1,0,1},
-	  {0,0,0,0,2,1,2,1,2,1,2,1,2,1,2,1},
-	  {0,1,0,1,0,1,0,1,0,1,0,1,2,2,2,2},
-	  {0,2,2,2,0,1,1,1,0,2,2,2,0,1,1,1},
-	  {0,0,0,2,1,1,1,2,0,0,0,2,1,1,1,2},
-	  {0,0,0,0,2,1,1,2,2,1,1,2,2,1,1,2},
-	  {0,2,2,2,0,1,1,1,0,1,1,1,0,2,2,2},
-	  {0,0,0,2,1,1,1,2,1,1,1,2,0,0,0,2},
-	  {0,1,1,0,0,1,1,0,0,1,1,0,2,2,2,2},
-	  {0,0,0,0,0,0,0,0,2,1,1,2,2,1,1,2},
-	  {0,1,1,0,0,1,1,0,2,2,2,2,2,2,2,2},
-	  {0,0,2,2,0,0,1,1,0,0,1,1,0,0,2,2},
-	  {0,0,2,2,1,1,2,2,1,1,2,2,0,0,2,2},
-	  {0,0,0,0,0,0,0,0,0,0,0,0,2,1,1,2},
-	  {0,0,0,2,0,0,0,1,0,0,0,2,0,0,0,1},
-	  {0,2,2,2,1,2,2,2,0,2,2,2,1,2,2,2},
-	  {0,1,0,1,2,2,2,2,2,2,2,2,2,2,2,2},
-	  {0,1,1,1,2,0,1,1,2,2,0,1,2,2,2,0}}};
+static ui8_t partitionSubsets[2 * MAX_PARTITIONS * NUM_PIXELS] = 
+	{0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,
+	 0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,
+	 0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,1,
+	 0,0,0,1,0,0,1,1,0,0,1,1,0,1,1,1,
+	 0,0,0,0,0,0,0,1,0,0,0,1,0,0,1,1,
+	 0,0,1,1,0,1,1,1,0,1,1,1,1,1,1,1,
+	 0,0,0,1,0,0,1,1,0,1,1,1,1,1,1,1,
+	 0,0,0,0,0,0,0,1,0,0,1,1,0,1,1,1,
+	 0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,
+	 0,0,1,1,0,1,1,1,1,1,1,1,1,1,1,1,
+	 0,0,0,0,0,0,0,1,0,1,1,1,1,1,1,1,
+	 0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,1,
+	 0,0,0,1,0,1,1,1,1,1,1,1,1,1,1,1,
+	 0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,
+	 0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,
+	 0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,
+	 0,0,0,0,1,0,0,0,1,1,1,0,1,1,1,1,
+	 0,1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,
+	 0,0,0,0,0,0,0,0,1,0,0,0,1,1,1,0,
+	 0,1,1,1,0,0,1,1,0,0,0,1,0,0,0,0,
+	 0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,
+	 0,0,0,0,1,0,0,0,1,1,0,0,1,1,1,0,
+	 0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,
+	 0,1,1,1,0,0,1,1,0,0,1,1,0,0,0,1,
+	 0,0,1,1,0,0,0,1,0,0,0,1,0,0,0,0,
+	 0,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0,
+	 0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,
+	 0,0,1,1,0,1,1,0,0,1,1,0,1,1,0,0,
+	 0,0,0,1,0,1,1,1,1,1,1,0,1,0,0,0,
+	 0,0,0,0,1,1,1,1,1,1,1,1,0,0,0,0,
+	 0,1,1,1,0,0,0,1,1,0,0,0,1,1,1,0,
+	 0,0,1,1,1,0,0,1,1,0,0,1,1,1,0,0,
+	 0,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1,
+	 0,0,0,0,1,1,1,1,0,0,0,0,1,1,1,1,
+	 0,1,0,1,1,0,1,0,0,1,0,1,1,0,1,0,
+	 0,0,1,1,0,0,1,1,1,1,0,0,1,1,0,0,
+	 0,0,1,1,1,1,0,0,0,0,1,1,1,1,0,0,
+	 0,1,0,1,0,1,0,1,1,0,1,0,1,0,1,0,
+	 0,1,1,0,1,0,0,1,0,1,1,0,1,0,0,1,
+	 0,1,0,1,1,0,1,0,1,0,1,0,0,1,0,1,
+	 0,1,1,1,0,0,1,1,1,1,0,0,1,1,1,0,
+	 0,0,0,1,0,0,1,1,1,1,0,0,1,0,0,0,
+	 0,0,1,1,0,0,1,0,0,1,0,0,1,1,0,0,
+	 0,0,1,1,1,0,1,1,1,1,0,1,1,1,0,0,
+	 0,1,1,0,1,0,0,1,1,0,0,1,0,1,1,0,
+	 0,0,1,1,1,1,0,0,1,1,0,0,0,0,1,1,
+	 0,1,1,0,0,1,1,0,1,0,0,1,1,0,0,1,
+	 0,0,0,0,0,1,1,0,0,1,1,0,0,0,0,0,
+	 0,1,0,0,1,1,1,0,0,1,0,0,0,0,0,0,
+	 0,0,1,0,0,1,1,1,0,0,1,0,0,0,0,0,
+	 0,0,0,0,0,0,1,0,0,1,1,1,0,0,1,0,
+	 0,0,0,0,0,1,0,0,1,1,1,0,0,1,0,0,
+	 0,1,1,0,1,1,0,0,1,0,0,1,0,0,1,1,
+	 0,0,1,1,0,1,1,0,1,1,0,0,1,0,0,1,
+	 0,1,1,0,0,0,1,1,1,0,0,1,1,1,0,0,
+	 0,0,1,1,1,0,0,1,1,1,0,0,0,1,1,0,
+	 0,1,1,0,1,1,0,0,1,1,0,0,1,0,0,1,
+	 0,1,1,0,0,0,1,1,0,0,1,1,1,0,0,1,
+	 0,1,1,1,1,1,1,0,1,0,0,0,0,0,0,1,
+	 0,0,0,1,1,0,0,0,1,1,1,0,0,1,1,1,
+	 0,0,0,0,1,1,1,1,0,0,1,1,0,0,1,1,
+	 0,0,1,1,0,0,1,1,1,1,1,1,0,0,0,0,
+	 0,0,1,0,0,0,1,0,1,1,1,0,1,1,1,0,
+	 0,1,0,0,0,1,0,0,0,1,1,1,0,1,1,1,
 
-static ui8_t anchors[3][64] = 
+	 0,0,1,1,0,0,1,1,0,2,2,1,2,2,2,2,
+	 0,0,0,1,0,0,1,1,2,2,1,1,2,2,2,1,
+	 0,0,0,0,2,0,0,1,2,2,1,1,2,2,1,1,
+	 0,2,2,2,0,0,2,2,0,0,1,1,0,1,1,1,
+	 0,0,0,0,0,0,0,0,1,1,2,2,1,1,2,2,
+	 0,0,1,1,0,0,1,1,0,0,2,2,0,0,2,2,
+	 0,0,2,2,0,0,2,2,1,1,1,1,1,1,1,1,
+	 0,0,1,1,0,0,1,1,2,2,1,1,2,2,1,1,
+	 0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,
+	 0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,
+	 0,0,0,0,1,1,1,1,2,2,2,2,2,2,2,2,
+	 0,0,1,2,0,0,1,2,0,0,1,2,0,0,1,2,
+	 0,1,1,2,0,1,1,2,0,1,1,2,0,1,1,2,
+	 0,1,2,2,0,1,2,2,0,1,2,2,0,1,2,2,
+	 0,0,1,1,0,1,1,2,1,1,2,2,1,2,2,2,
+	 0,0,1,1,2,0,0,1,2,2,0,0,2,2,2,0,
+	 0,0,0,1,0,0,1,1,0,1,1,2,1,1,2,2,
+	 0,1,1,1,0,0,1,1,2,0,0,1,2,2,0,0,
+	 0,0,0,0,1,1,2,2,1,1,2,2,1,1,2,2,
+	 0,0,2,2,0,0,2,2,0,0,2,2,1,1,1,1,
+	 0,1,1,1,0,1,1,1,0,2,2,2,0,2,2,2,
+	 0,0,0,1,0,0,0,1,2,2,2,1,2,2,2,1,
+	 0,0,0,0,0,0,1,1,0,1,2,2,0,1,2,2,
+	 0,0,0,0,1,1,0,0,2,2,1,0,2,2,1,0,
+	 0,1,2,2,0,1,2,2,0,0,1,1,0,0,0,0,
+	 0,0,1,2,0,0,1,2,1,1,2,2,2,2,2,2,
+	 0,1,1,0,1,2,2,1,1,2,2,1,0,1,1,0,
+	 0,0,0,0,0,1,1,0,1,2,2,1,1,2,2,1,
+	 0,0,2,2,1,1,0,2,1,1,0,2,0,0,2,2,
+	 0,1,1,0,0,1,1,0,2,0,0,2,2,2,2,2,
+	 0,0,1,1,0,1,2,2,0,1,2,2,0,0,1,1,
+	 0,0,0,0,2,0,0,0,2,2,1,1,2,2,2,1,
+	 0,0,0,0,0,0,0,2,1,1,2,2,1,2,2,2,
+	 0,2,2,2,0,0,2,2,0,0,1,2,0,0,1,1,
+	 0,0,1,1,0,0,1,2,0,0,2,2,0,2,2,2,
+	 0,1,2,0,0,1,2,0,0,1,2,0,0,1,2,0,
+	 0,0,0,0,1,1,1,1,2,2,2,2,0,0,0,0,
+	 0,1,2,0,1,2,0,1,2,0,1,2,0,1,2,0,
+	 0,1,2,0,2,0,1,2,1,2,0,1,0,1,2,0,
+	 0,0,1,1,2,2,0,0,1,1,2,2,0,0,1,1,
+	 0,0,1,1,1,1,2,2,2,2,0,0,0,0,1,1,
+	 0,1,0,1,0,1,0,1,2,2,2,2,2,2,2,2,
+	 0,0,0,0,0,0,0,0,2,1,2,1,2,1,2,1,
+	 0,0,2,2,1,1,2,2,0,0,2,2,1,1,2,2,
+	 0,0,2,2,0,0,1,1,0,0,2,2,0,0,1,1,
+	 0,2,2,0,1,2,2,1,0,2,2,0,1,2,2,1,
+	 0,1,0,1,2,2,2,2,2,2,2,2,0,1,0,1,
+	 0,0,0,0,2,1,2,1,2,1,2,1,2,1,2,1,
+	 0,1,0,1,0,1,0,1,0,1,0,1,2,2,2,2,
+	 0,2,2,2,0,1,1,1,0,2,2,2,0,1,1,1,
+	 0,0,0,2,1,1,1,2,0,0,0,2,1,1,1,2,
+	 0,0,0,0,2,1,1,2,2,1,1,2,2,1,1,2,
+	 0,2,2,2,0,1,1,1,0,1,1,1,0,2,2,2,
+	 0,0,0,2,1,1,1,2,1,1,1,2,0,0,0,2,
+	 0,1,1,0,0,1,1,0,0,1,1,0,2,2,2,2,
+	 0,0,0,0,0,0,0,0,2,1,1,2,2,1,1,2,
+	 0,1,1,0,0,1,1,0,2,2,2,2,2,2,2,2,
+	 0,0,2,2,0,0,1,1,0,0,1,1,0,0,2,2,
+	 0,0,2,2,1,1,2,2,1,1,2,2,0,0,2,2,
+	 0,0,0,0,0,0,0,0,0,0,0,0,2,1,1,2,
+	 0,0,0,2,0,0,0,1,0,0,0,2,0,0,0,1,
+	 0,2,2,2,1,2,2,2,0,2,2,2,1,2,2,2,
+	 0,1,0,1,2,2,2,2,2,2,2,2,2,2,2,2,
+	 0,1,1,1,2,0,1,1,2,2,0,1,2,2,2,0};
+
+static ui8_t anchors[3][MAX_PARTITIONS] = 
 	{{15,15,15,15,15,15,15,15,
 	  15,15,15,15,15,15,15,15,
 	  15, 2, 8, 2, 2, 8, 8,15,
@@ -237,7 +240,7 @@ static ui8_t anchors[3][64] =
 	  15, 3,15,15,15,15,15,15,
 	  15,15,15,15, 3,15,15, 8}};
 
-static ui8_t interpFactors[3][16] =
+static ui8_t interpFactors[3][MAX_INTERPS] =
 	{{0, 21, 43, 64,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
 	 {0,  9, 18, 27, 37, 46, 55, 64,  0,  0,  0,  0,  0,  0,  0,  0},
 	 {0,  4,  9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64}};
@@ -433,9 +436,9 @@ static void CopyRGBA(ui8_t out[4], const ui8_t in[4])
 static void DecodeIndexes(ui8_t *rgbaOut, void (*copyFunc)(ui8_t out[4], const ui8_t in[4]), const ui8_t *blockIn, int *bitPos, ui8_t interpColor[MAX_SUBSETS][MAX_INTERPS][4], int numSubsets, int partition, int indexBits)
 {
 	int i, subset, anchorIndex, colorIndex;
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
+	ui8_t *subsetTable = (numSubsets > 1) ? &partitionSubsets[((numSubsets - 2) * MAX_PARTITIONS + partition) * NUM_PIXELS] : 0;
 
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < NUM_PIXELS; i++)
 	{
 		subset = subsetTable ? subsetTable[i] : 0;
 		anchorIndex = subset ? anchors[subset - ((numSubsets > 2) ? 0 : 1)][partition] : 0;
@@ -497,7 +500,7 @@ void jrcDecodeBc7Block(ui8_t *rgbaOut, const ui8_t *blockIn)
 		DecodeIndexes(rgbaOut, CopyRGBA, blockIn, &bitPos, interpColor, numSubsets, partition, indexBits);
 
 	if (rotation)
-		for (i = 0; i < 16; i++)
+		for (i = 0; i < NUM_PIXELS; i++)
 		{
 			ui8_t newAlpha          = rgbaOut[i*4+rotation-1];
 			rgbaOut[i*4+rotation-1] = rgbaOut[i*4+3];
@@ -508,25 +511,30 @@ void jrcDecodeBc7Block(ui8_t *rgbaOut, const ui8_t *blockIn)
 // ITU.BT-709 HDTV studio production in Y'CbCr for non-linear signals
 // according to http://www.martinreddy.net/gfx/faqs/colorconv.faq
 //
-// Altered slightly to fit (0..1) and (-0.5..0.5)
+// Altered slightly to fit (0..1) and (-0.5..0.5), and make Y linear
 static void Rgb8ToYcbcr32f(float ycbcr32f[3], const ui8_t rgb8[3])
 {
 	float rgb32f[3];
-	
+
 	Vec3Scale(rgb32f, 1.0f / 255.0f, rgb8);
 
 	ycbcr32f[0] =  0.2125f * rgb32f[0] + 0.7154f * rgb32f[1] + 0.0721f * rgb32f[2];
 	ycbcr32f[1] = -0.1145f * rgb32f[0] - 0.3855f * rgb32f[1] + 0.5000f * rgb32f[2];
 	ycbcr32f[2] =  0.5000f * rgb32f[0] - 0.4542f * rgb32f[1] - 0.0458f * rgb32f[2];
+
+	ycbcr32f[0] = pow(ycbcr32f[0], 2.2);
 }
 
 static void Ycbcr32fToRgb8(ui8_t rgb8[3], const float ycbcr32f[3])
 {
 	float rgb32f[3];
+	float y;
 
-	rgb32f[0] = ycbcr32f[0]                         + 1.5750f * ycbcr32f[2];
-	rgb32f[1] = ycbcr32f[0] - 0.1870f * ycbcr32f[1] - 0.4678f * ycbcr32f[2];
-	rgb32f[2] = ycbcr32f[0] + 1.8558f * ycbcr32f[1];
+	y = pow(ycbcr32f[0], 1.0/2.2);
+
+	rgb32f[0] = y                         + 1.5750f * ycbcr32f[2];
+	rgb32f[1] = y - 0.1870f * ycbcr32f[1] - 0.4678f * ycbcr32f[2];
+	rgb32f[2] = y + 1.8558f * ycbcr32f[1];
 
 	// Ycbcr allows for values outside (0..1) once converted to RGB, so clamp.
 	rgb8[0] = CLAMP(rgb32f[0] * 255, 0, 255);
@@ -540,6 +548,7 @@ static float DistanceBetweenYcbcr(float ycbcr1[3], float ycbcr2[3])
 	float d[3];
 
 	Vec3Subtract(d, ycbcr1, ycbcr2);
+	d[0] *= 4.0f;
 
 	return DotProduct3(d, d);
 }
@@ -577,7 +586,7 @@ static float CalcVariance(const ui8_t *rgbaIn)
 	Vec3Identity(minYcbcr);
 	Vec3Clear(maxYcbcr);
 
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < NUM_PIXELS; i++)
 	{
 		float pixelYcbcr[3];
 
@@ -591,24 +600,22 @@ static float CalcVariance(const ui8_t *rgbaIn)
 	}
 
 	Vec3Subtract(rangeYcbcr, maxYcbcr, minYcbcr);
+	rangeYcbcr[0] *= 4.0f;
 	return DotProduct3(rangeYcbcr, rangeYcbcr);
 }
 
 static void FindEndpointsRgb(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const ui8_t *rgbaIn, int numSubsets, int partition)
 {
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
+	ui8_t *subsetTable = (numSubsets > 1) ? &partitionSubsets[((numSubsets - 2) * MAX_PARTITIONS + partition) * NUM_PIXELS] : 0;
 	int subset;
 
-	float blockYcbcrs[16][3];
+	float blockYcbcrs[NUM_PIXELS][3];
 	float minYcbcr[numSubsets][3], maxYcbcr[numSubsets][3], avgYcbcr[numSubsets][3];
 	float endpointYcbcr[numSubsets][NUM_ENDPOINTS][3];
 	int i, component, majorAxes[numSubsets], count[numSubsets], count2[numSubsets];
 
-	for (i = 0; i < 16; i++)
-	{
+	for (i = 0; i < NUM_PIXELS; i++)
 		Rgb8ToYcbcr32f(blockYcbcrs[i], &rgbaIn[i*4]);
-		blockYcbcrs[i][0] = pow(blockYcbcrs[i][0], 2.2);
-	}
 
 	for (subset = 0; subset < numSubsets; subset++)
 	{
@@ -619,7 +626,7 @@ static void FindEndpointsRgb(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const 
 	}
 
 	// find min, max, avg, range of ycbcr per subset
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < NUM_PIXELS; i++)
 	{
 		subset = subsetTable ? subsetTable[i] : 0;
 
@@ -659,7 +666,7 @@ static void FindEndpointsRgb(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const 
 	}
 
 	// find average color on either side of average of major axis
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < NUM_PIXELS; i++)
 	{
 		int majorAxis;
 		subset = subsetTable ? subsetTable[i] : 0;
@@ -690,9 +697,6 @@ static void FindEndpointsRgb(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const 
 		endpointYcbcr[subset][0][majorAxis] = minYcbcr[subset][majorAxis] * 0.5f + endpointYcbcr[subset][0][majorAxis] * 0.5f;
 		endpointYcbcr[subset][1][majorAxis] = maxYcbcr[subset][majorAxis] * 0.5f + endpointYcbcr[subset][1][majorAxis] * 0.5f;
 
-		endpointYcbcr[subset][0][0] = pow(endpointYcbcr[subset][0][0], 1.0f/2.2f);
-		endpointYcbcr[subset][1][0] = pow(endpointYcbcr[subset][1][0], 1.0f/2.2f);
-
 		// convert ycbcr to endpoint colors
 		Ycbcr32fToRgb8(colors[subset][0], endpointYcbcr[subset][0]);
 		Ycbcr32fToRgb8(colors[subset][1], endpointYcbcr[subset][1]);
@@ -701,7 +705,7 @@ static void FindEndpointsRgb(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const 
 
 static void FindEndpointsAlpha(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], const ui8_t *rgbaIn, int numSubsets, int partition)
 {
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
+	ui8_t *subsetTable = (numSubsets > 1) ? &partitionSubsets[((numSubsets - 2) * MAX_PARTITIONS + partition) * NUM_PIXELS] : 0;
 	int subset, i;
 
 	for (subset = 0; subset < numSubsets; subset++)
@@ -710,7 +714,7 @@ static void FindEndpointsAlpha(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], cons
 		colors[subset][1][3] = 0;
 	}
 
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < NUM_PIXELS; i++)
 	{
 		subset = subsetTable ? subsetTable[i] : 0;
 
@@ -719,15 +723,15 @@ static void FindEndpointsAlpha(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], cons
 	}
 }
 
-static void EncodeIndexes(int indexes[16], int indexBits, const ui8_t *rgbaIn, ui8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4], float (*compFunc)(const ui8_t *a, const ui8_t *b), int numSubsets, int partition)
+static void EncodeIndexes(int indexes[NUM_PIXELS], int indexBits, const ui8_t *rgbaIn, ui8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4], float (*compFunc)(const ui8_t *a, const ui8_t *b), int numSubsets, int partition)
 {
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
+	ui8_t *subsetTable = (numSubsets > 1) ? &partitionSubsets[((numSubsets - 2) * MAX_PARTITIONS + partition) * NUM_PIXELS] : 0;
 	int i, j;
 
 	if (!indexBits)
 		return;
 
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < NUM_PIXELS; i++)
 	{
 		int nearestColor = 0;
 		float lowestDiff;
@@ -822,9 +826,9 @@ static void SwapAlpha(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[M
 	swap = colors[subset][0][3]; colors[subset][0][3] = colors[subset][1][3]; colors[subset][1][3] = swap;
 }
 
-static void FixAnchorIndexes(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int indexes[16], int numSubsets, int partition, int indexBits, void (*swapFunc)(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset))
+static void FixAnchorIndexes(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int indexes[NUM_PIXELS], int numSubsets, int partition, int indexBits, void (*swapFunc)(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS], int subset))
 {
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
+	ui8_t *subsetTable = (numSubsets > 1) ? &partitionSubsets[((numSubsets - 2) * MAX_PARTITIONS + partition) * NUM_PIXELS] : 0;
 	int subset, i;
 
 	if (!indexBits)
@@ -836,7 +840,7 @@ static void FixAnchorIndexes(ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4], ui8_t 
 
 		if (indexes[anchorIndex] & BIT_SHIFT(indexBits - 1))
 		{
-			for (i = 0; i < 16; i++)
+			for (i = 0; i < NUM_PIXELS; i++)
 			{
 				if ((subsetTable ? subsetTable[i] : 0) != subset)
 					continue;
@@ -872,15 +876,15 @@ static void WritePBits(ui8_t *blockOut, int *bitPos, ui8_t pBits[MAX_SUBSETS][NU
 				SetBits(blockOut, bitPos, pBits[subset][endpoint], 1);
 }
 
-static void WriteIndexes(ui8_t *blockOut, int *bitPos, int indexes[16], int numSubsets, int partition, int indexBits)
+static void WriteIndexes(ui8_t *blockOut, int *bitPos, int indexes[NUM_PIXELS], int numSubsets, int partition, int indexBits)
 {
-	ui8_t *subsetTable = (numSubsets > 1) ? partitionSubsets[numSubsets - 2][partition] : 0;
+	ui8_t *subsetTable = (numSubsets > 1) ? &partitionSubsets[((numSubsets - 2) * MAX_PARTITIONS + partition) * NUM_PIXELS] : 0;
 	int i;
 
 	if (!indexBits)
 		return;
 
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < NUM_PIXELS; i++)
 	{
 		int subset = subsetTable ? subsetTable[i] : 0;
 		int anchorIndex = subset ? anchors[subset - ((numSubsets > 2) ? 0 : 1)][partition] : 0;
@@ -893,22 +897,24 @@ static void WriteIndexes(ui8_t *blockOut, int *bitPos, int indexes[16], int numS
 int PickPartition(const ui8_t *rgbaIn, int numSubsets, int partitionBits, float *distanceOut)
 {
 	int partition, numPartitions, bestPartition, i;
-	float bestDistance, blockYcbcrs[16][3];
+	float bestDistance, blockYcbcrs[NUM_PIXELS][3];
+	ui8_t *subsetTable;
 
 	if (numSubsets < 2)
 		return 0;
 
 	numPartitions = BIT_SHIFT(partitionBits);
 
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < NUM_PIXELS; i++)
 		Rgb8ToYcbcr32f(blockYcbcrs[i], &rgbaIn[i*4]);
 
 	bestPartition = 0;
 	bestDistance = 0.0f;
 
+	subsetTable = &partitionSubsets[(numSubsets - 2) * MAX_PARTITIONS * NUM_PIXELS];
+
 	for (partition = 0; partition < numPartitions; partition++)
 	{
-		ui8_t *subsetTable = partitionSubsets[numSubsets - 2][partition];
 		float distance, avgYcbcrs[MAX_SUBSETS][3];
 		int counts[MAX_SUBSETS];
 		int subset;
@@ -919,15 +925,15 @@ int PickPartition(const ui8_t *rgbaIn, int numSubsets, int partitionBits, float 
 			Vec3Clear(avgYcbcrs[subset]);
 		}
 
-		for (i = 0; i < 16; i++)
+		for (i = 0; i < NUM_PIXELS; i++)
 		{
-			subset = subsetTable[i];
+			subset = *subsetTable++;
 			Vec3Add(avgYcbcrs[subset], avgYcbcrs[subset], blockYcbcrs[i]);
 			counts[subset]++;
 		}
 
 		for (subset = 0; subset < numSubsets; subset++)
-			Vec3Scale(avgYcbcrs[subset], 1.0f / MAX(counts[subset], 1), avgYcbcrs[subset]);
+			Vec3Scale(avgYcbcrs[subset], 1.0f / counts[subset], avgYcbcrs[subset]);
 
 		distance = DistanceBetweenYcbcr(avgYcbcrs[0], avgYcbcrs[1]);
 		if (numSubsets == 3)
@@ -951,7 +957,7 @@ static void EncodeBptcBlockMode(ui8_t *blockOut, const ui8_t *rgbaIn, int mode)
 	ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4];
 	ui8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4];
 	ui8_t pBits[MAX_SUBSETS][NUM_ENDPOINTS];
-	int indexes[16], indexes2[16];
+	int indexes[NUM_PIXELS], indexes2[NUM_PIXELS];
 
 	int numSubsets, partitionBits, rotationBits, indexSelectionBits, colorBits;
 	int alphaBits, pBitMode, indexBits, index2Bits;
@@ -998,15 +1004,12 @@ static void EncodeBptcBlockMode(ui8_t *blockOut, const ui8_t *rgbaIn, int mode)
 
 void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 {
-	int fullyOpaque, fullyTransparent, singleColor, singleAlpha;
+	int fullyOpaque, fullyTransparent, singleColor;
 	int i, secondColor;
 
-	fullyOpaque = 1;
-	fullyTransparent = 1;
-	singleColor = 1;
+	fullyOpaque = fullyTransparent = singleColor = 1;
 	secondColor = 0;
-	singleAlpha = 1;
-	for (i = 0; i < 16; i++)
+	for (i = 0; i < NUM_PIXELS; i++)
 	{
 		if (rgbaIn[i*4+3] != 255)
 			fullyOpaque = 0;
@@ -1014,22 +1017,15 @@ void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 		if (rgbaIn[i*4+3] != 0)
 			fullyTransparent = 0;
 		
-		if (!Vec3Equal(&rgbaIn[0], &rgbaIn[i*4]))
+		if (!Vec4Equal(&rgbaIn[0], &rgbaIn[i*4]))
 		{
 			if (singleColor)
-			{
-				singleColor = 0;
 				secondColor = i;
-			}
-			else
-			{
-				if (!Vec3Equal(&rgbaIn[secondColor*4], &rgbaIn[i*4]))
-					secondColor = 0;
-			}
-		}
+			else if (!Vec4Equal(&rgbaIn[secondColor*4], &rgbaIn[i*4]))
+				secondColor = 0;
 
-		if (rgbaIn[i*4+3] != rgbaIn[3])
-			singleAlpha = 0;
+			singleColor = 0;
+		}
 	}
 
 	// fully transparent
@@ -1043,9 +1039,9 @@ void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 		return;
 	}
 
-	// single color and single alpha, encode as mode 6
-	// this is an accurate color unless one or more components are < 2
-	if (singleColor && singleAlpha)
+	// single color, encode as mode 6
+	// this is 8 bit color and 7 bit alpha accurate unless one or more components are < 2
+	if (singleColor)
 	{
 		int bitPos = 0;
 		int endpoint, component;
@@ -1056,17 +1052,17 @@ void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 		needInterp = 0;
 		for (component = 0; component < 4; component++)
 		{
-			ui8_t c7 = rgbaIn[component] >> 1;
+			ui8_t c0, c1;
+			c0 = c1 = rgbaIn[component] >> 1;
 
-			if ((rgbaIn[component] & 1) && c7)
+			if ((rgbaIn[component] & 1) && c0)
 			{
 				needInterp = 1;
-				SetBits(blockOut, &bitPos, c7 - 1, 7);
+				c0--;
 			}
-			else
-				SetBits(blockOut, &bitPos, c7, 7);
 
-			SetBits(blockOut, &bitPos, c7, 7);
+			SetBits(blockOut, &bitPos, c0, 7);
+			SetBits(blockOut, &bitPos, c1, 7);
 		}
 
 		// pBits are always 1
@@ -1077,7 +1073,7 @@ void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 		{
 			// all index 7
 			SetBits(blockOut, &bitPos, 7, 3);
-			for (i = 1; i < 16; i++)
+			for (i = 1; i < NUM_PIXELS; i++)
 				SetBits(blockOut, &bitPos, 7, 4);
 		}
 		else
@@ -1085,28 +1081,37 @@ void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 
 		return;
 	}
-	
-	// two color and single alpha, encode as mode 6
+
+	// two color, encode as mode 6
 	// colors are 7 bit accurate
-	if (secondColor && singleAlpha)
+	if (secondColor)
 	{
 		int bitPos = 0;
 		int endpoint, component;
-		
+
 		SetBits(blockOut, &bitPos, BIT_SHIFT(6), 7); // mode 6
 		for (component = 0; component < 4; component++)
-		{
-			SetBits(blockOut, &bitPos, rgbaIn[component] >> 1, 7);
-			SetBits(blockOut, &bitPos, rgbaIn[secondColor*4+component] >> 1, 7);
-		}
+			for (endpoint = 0; endpoint < NUM_ENDPOINTS; endpoint++)
+				SetBits(blockOut, &bitPos, rgbaIn[endpoint * secondColor * 4 + component] >> 1, 7);
 
-		// pBits are always 1
 		for (endpoint = 0; endpoint < NUM_ENDPOINTS; endpoint++)
-			SetBits(blockOut, &bitPos, 1, 1);
+		{
+			const ui8_t *color = &rgbaIn[endpoint * secondColor * 4];
+			ui8_t pBit;
+
+			if (color[3] == 0)
+				pBit = 0;
+			else if (color[3] == 255)
+				pBit = 1;
+			else
+				pBit = (((color[0] & 1) + (color[1] & 1) + (color[2] & 1) + (color[3] & 1)) >> 1) ? 1 : 0;
+			
+			SetBits(blockOut, &bitPos, pBit, 1);
+		}
 
 		// first index is 0, because first color is at 0
 		SetBits(blockOut, &bitPos, 0, 3);
-		for (i = 1; i < 16; i++)
+		for (i = 1; i < NUM_PIXELS; i++)
 			if (Vec3Equal(&rgbaIn[0], &rgbaIn[i*4]))
 				SetBits(blockOut, &bitPos, 0, 4);
 			else
