@@ -122,18 +122,30 @@ vec_t VecLerp(vec_t a, vec_t s, vec_t b);
 #define Vec4Add(r, a, b) \
 	(((r)[0] = (a)[0] + (b)[0]), \
 	 ((r)[1] = (a)[1] + (b)[1]), \
-	 ((r)[2] = (a)[1] + (b)[2]), \
-	 ((r)[3] = (a)[2] + (b)[3]))
+	 ((r)[2] = (a)[2] + (b)[2]), \
+	 ((r)[3] = (a)[3] + (b)[3]))
 
 #define Vec3MultiplyAdd(r, a, s, b) \
 	(((r)[0] = (a)[0] + (s) * (b)[0]), \
 	 ((r)[1] = (a)[1] + (s) * (b)[1]), \
 	 ((r)[2] = (a)[2] + (s) * (b)[2]))
 
+#define Vec4MultiplyAdd(r, a, s, b) \
+	(((r)[0] = (a)[0] + (s) * (b)[0]), \
+	 ((r)[1] = (a)[1] + (s) * (b)[1]), \
+	 ((r)[2] = (a)[2] + (s) * (b)[2]), \
+	 ((r)[3] = (a)[3] + (s) * (b)[3]))
+
 #define Vec3Subtract(r, a, b) \
 	(((r)[0] = (a)[0] - (b)[0]), \
 	 ((r)[1] = (a)[1] - (b)[1]), \
 	 ((r)[2] = (a)[2] - (b)[2]))
+
+#define Vec4Subtract(r, a, b) \
+	(((r)[0] = (a)[0] - (b)[0]), \
+	 ((r)[1] = (a)[1] - (b)[1]), \
+	 ((r)[2] = (a)[2] - (b)[2]), \
+	 ((r)[3] = (a)[3] - (b)[3]))
 
 #define Vec3Scale(r, s, a) \
 	(((r)[0] = (s) * (a)[0]), \
@@ -251,6 +263,7 @@ void ConvexHullFromAabb(convexHull_t *ch, aabb_t aabb);
 int SweepAabbWithConvexHull(aabb_t aabb, vec3_t move, convexHull_t *ch, vec_t *hitFraction, plane_t hitPlane);
 int Aabb_SweepCollision2(aabb_t bounds1, vec3_t move1, aabb_t bounds2, vec3_t move2, vec_t *hitDistance, plane_t hitPlane);
 int CheckAndResolveCollision(aabb_t staticBounds, aabb_t movingBounds, vec3_t correction);
+int Aabb_TraceRayToInsideFace(aabb_t aabb, vec3_t pos, vec3_t dir, int *outFace, float *outDist, vec3_t outImpact);
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
@@ -267,6 +280,14 @@ int CheckAndResolveCollision(aabb_t staticBounds, aabb_t movingBounds, vec3_t co
 	 ((r)[1] = (a)[3] * (b)[1] + (a)[1] * (b)[3] + (a)[2] * (b)[0] - (a)[0] * (b)[2]), \
 	 ((r)[2] = (a)[3] * (b)[2] + (a)[2] * (b)[3] + (a)[0] * (b)[1] - (a)[1] * (b)[0]), \
 	 ((r)[3] = (a)[3] * (b)[3] - (a)[0] * (b)[0] - (a)[1] * (b)[1] - (a)[2] * (b)[2]))
+
+#define Aabb_PointInside(a, v) \
+	   (((v)[0] > a[0][0]) && ((v)[1] > a[0][1]) && ((v)[2] > a[0][2])  \
+	 && ((v)[0] < a[1][0]) && ((v)[1] < a[1][1]) && ((v)[2] < a[1][2]))
+
+#define Aabb_PointInsideInclusive(a, v) \
+	   (((v)[0] >= a[0][0]) && ((v)[1] >= a[0][1]) && ((v)[2] >= a[0][2])  \
+	 && ((v)[0] <= a[1][0]) && ((v)[1] <= a[1][1]) && ((v)[2] <= a[1][2]))
 
 #ifdef __cplusplus
 }
@@ -985,15 +1006,14 @@ void TriangleCalcCaches(triangle_t triangle, plane_t plane, vec4_t triCache)
 	iD = 1.0f / (uv * uv - uu * vv);
 	triCache[0] = uu;
 	triCache[1] = uv;
-	triCache[2] = vv;	
+	triCache[2] = vv;
 	triCache[3] = iD;
 }
 
 void Aabb_Clear(aabb_t aabb)
 {
-	// FIXME: may want larger ranges than this some day
-	Vec3Set(aabb[0],  99999999.0f,  99999999.0f,  99999999.0f);
-	Vec3Set(aabb[1], -99999999.0f, -99999999.0f, -99999999.0f);
+	Vec3Set(aabb[0],  1E37,  1E37,  1E37);
+	Vec3Set(aabb[1], -1E37, -1E37, -1E37);
 }
 
 void Aabb_SetToPoint(aabb_t aabb, vec3_t point)
@@ -1375,7 +1395,7 @@ int SweepAabbWithConvexHull(aabb_t aabb, vec3_t move, convexHull_t *ch, vec_t *h
 {
 	vec_t closestFraction = 1.0f;
 	vec_t minFraction = 1.0f;
-	plane_t closestHitPlane;
+	plane_t closestHitPlane = {0.0f, 0.0f, 0.0f, 0.0f};
 	int i;
 
 	if (!Aabb_SweepCollision(ch->aabb, NULL, aabb, move, &minFraction))
@@ -1503,6 +1523,56 @@ int CheckAndResolveCollision(aabb_t staticBounds, aabb_t movingBounds, vec3_t co
 		}
 	}
 	
+	return 1;
+}
+
+int Aabb_TraceRayToInsideFace(aabb_t aabb, vec3_t pos, vec3_t dir, int *outFace, float *outDist, vec3_t outImpact)
+{
+	int axis, face = -1;
+	float dist = 1E37, newDist;
+	vec3_t impact;
+
+	for (axis = 0; axis < 3; axis++)
+	{
+		int positiveAxis = (dir[axis] > 0.0f) ? 1 : 0;
+		int negativeAxis = (dir[axis] < 0.0f) ? 1 : 0;
+
+		if (positiveAxis || negativeAxis)
+		{
+			newDist = (aabb[positiveAxis][axis] - pos[axis]) / dir[axis];
+
+			if (newDist >= 0.0f && newDist < dist)
+			{
+				dist = newDist;
+				face = (axis << 1) | negativeAxis;
+			}
+		}
+	}
+
+	if (face == -1) return 0;
+
+	if (!Aabb_PointInside(aabb, pos) || outImpact)
+	{
+		int axes[3] = {0, 1, 2};
+		int zAxis = face >> 1;
+		int positiveAxis = (face & 1) ? 0 : 1;
+
+		axes[zAxis] = 2;
+		axes[2] = zAxis;
+
+		// set the collision coordinate manually so we're sure it's equal
+		impact[axes[0]] = pos[axes[0]] + dist * dir[axes[0]];
+		impact[axes[1]] = pos[axes[1]] + dist * dir[axes[1]];
+		impact[axes[2]] = aabb[positiveAxis][axes[2]];
+
+		if (!Aabb_PointInsideInclusive(aabb, impact))
+			return 0;
+	}
+
+	if (outFace)   *outFace = face;
+	if (outDist)   *outDist = dist;
+	if (outImpact) Vec3Copy(outImpact, impact);
+
 	return 1;
 }
 
