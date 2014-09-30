@@ -2,7 +2,7 @@
 #define INCLUDE_JRC_BC7_H
 
 void jrcDecodeBc7Block(unsigned char *rgbaOut, const unsigned char *blockIn);
-void jrcEncodeBc7Block(unsigned char *blockOut, const unsigned char *rgbaIn);
+void jrcEncodeBc7Block(unsigned char *blockOut, const unsigned char *rgbaIn, int hqAlpha);
 
 #endif
 #ifdef JRC_BC7_IMPLEMENTATION
@@ -952,7 +952,7 @@ int PickPartition(const ui8_t *rgbaIn, int numSubsets, int partitionBits, float 
 	return bestPartition;
 }
 
-static void EncodeBptcBlockMode(ui8_t *blockOut, const ui8_t *rgbaIn, int mode)
+static void EncodeBptcBlockMode(ui8_t *blockOut, const ui8_t *rgbaIn, int mode, int hqAlpha)
 {
 	ui8_t colors[MAX_SUBSETS][NUM_ENDPOINTS][4];
 	ui8_t interpColors[MAX_SUBSETS][MAX_INTERPS][4];
@@ -978,7 +978,7 @@ static void EncodeBptcBlockMode(ui8_t *blockOut, const ui8_t *rgbaIn, int mode)
 
 	partition = PickPartition(rgbaIn, numSubsets, partitionBits, 0);
 	rotation = 0; // FIXME: use rotationBits
-	indexSelection = (mode == 4) ? 1 : 0; // FIXME: use indexSelectionBits
+	indexSelection = (mode == 4 && !hqAlpha) ? 1 : 0; // FIXME: use indexSelectionBits
 
 	FindEndpointsRgb(colors, rgbaIn, numSubsets, partition);
 	FindEndpointsAlpha(colors, rgbaIn, numSubsets, partition);
@@ -1002,7 +1002,7 @@ static void EncodeBptcBlockMode(ui8_t *blockOut, const ui8_t *rgbaIn, int mode)
 	WriteIndexes(blockOut, &bitPos, indexes2, numSubsets, partition, index2Bits);
 }
 
-void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
+void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn, int hqAlpha)
 {
 	int fullyOpaque, fullyTransparent, singleColor;
 	int i, secondColor;
@@ -1126,13 +1126,13 @@ void jrcEncodeBc7Block(ui8_t *blockOut, const ui8_t *rgbaIn)
 		float variance = CalcVariance(rgbaIn);
 
 		if (variance < 0.6f)
-			EncodeBptcBlockMode(blockOut, rgbaIn, 3);
+			EncodeBptcBlockMode(blockOut, rgbaIn, 3, 0);
 		else
-			EncodeBptcBlockMode(blockOut, rgbaIn, 2);
+			EncodeBptcBlockMode(blockOut, rgbaIn, 2, 0);
 		return;
 	}
 
 	// just encode as a mode 4 block
-	EncodeBptcBlockMode(blockOut, rgbaIn, 4);
+	EncodeBptcBlockMode(blockOut, rgbaIn, 4, hqAlpha);
 }
 #endif
