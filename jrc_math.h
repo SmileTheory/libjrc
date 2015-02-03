@@ -45,6 +45,8 @@ typedef vec3_t aabb_t[2];
 
 #define EPSILON 0.00000001f
 
+void jrcMath_SetupSse2();
+
 float FastSqrt(float x);
 float FastInvSqrt(float x);
 int FloatToInt(float f);
@@ -200,9 +202,11 @@ void Vec4Normalize(vec4_t a);
 
 void Mat4Identity(mat4_t r);
 void Mat4Copy(mat4_t r, mat4_t a);
-void Mat4Multiply(mat4_t r, mat4_t a, mat4_t b);
-void Mat4MultiplyVec3(vec3_t r, mat4_t a, vec3_t b);
-void Mat4MultiplyVec4(vec4_t r, mat4_t a, vec4_t b);
+extern void (*Mat4Multiply)(mat4_t r, mat4_t a, mat4_t b);
+extern void (*Mat4MultiplyVec3_0)(vec3_t r, mat4_t a, vec3_t b);
+extern void (*Mat4MultiplyVec3_1)(vec3_t r, mat4_t a, vec3_t b);
+extern void (*Mat4MultiplyVec3_1_ToVec4)(vec4_t r, mat4_t a, vec3_t b);
+extern void (*Mat4MultiplyVec4)(vec4_t r, mat4_t a, vec4_t b);
 void Mat4Model(mat4_t model, vec3_t right, vec3_t up, vec3_t back, vec3_t pos);
 void Mat4View(mat4_t view, vec3_t facing, vec3_t up, vec3_t pos);
 void Mat4Ortho(mat4_t ortho, vec_t left, vec_t right, vec_t top, vec_t bottom, vec_t nearPlane, vec_t farPlane);
@@ -267,6 +271,8 @@ int Aabb_TraceRayToInsideFace(aabb_t aabb, vec3_t pos, vec3_t dir, int *outFace,
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
+#define MIN3(a,b,c) ((a) < (b) ? ((a) < (c) ? (a) : (c)) : ((b) < (c) ? (b) : (c)))
+#define MAX3(a,b,c) ((a) > (b) ? ((a) > (c) ? (a) : (c)) : ((b) > (c) ? (b) : (c)))
 #define CLAMP(t,a,b) ((t) > (b) ? (b) : (t) < (a) ? (a) : (t))
 
 #define QuatConjugate(r, a) \
@@ -458,7 +464,7 @@ void Mat4Copy(mat4_t r, mat4_t a)
 	r[15] = a[15];
 }
 
-void Mat4Multiply(mat4_t r, mat4_t a, mat4_t b)
+void Default_Mat4Multiply(mat4_t r, mat4_t a, mat4_t b)
 {
 	r[ 0] = a[ 0] * b[ 0] + a[ 4] * b[ 1] + a[ 8] * b[ 2] + a[12] * b[ 3];
 	r[ 1] = a[ 1] * b[ 0] + a[ 5] * b[ 1] + a[ 9] * b[ 2] + a[13] * b[ 3];
@@ -481,19 +487,134 @@ void Mat4Multiply(mat4_t r, mat4_t a, mat4_t b)
 	r[15] = a[ 3] * b[12] + a[ 7] * b[13] + a[11] * b[14] + a[15] * b[15];
 }
 
-void Mat4MultiplyVec3(vec3_t r, mat4_t a, vec3_t b)
+void Default_Mat4MultiplyVec3_0(vec3_t r, mat4_t a, vec3_t b)
+{
+	r[ 0] = a[ 0] * b[ 0] + a[ 4] * b[ 1] + a[ 8] * b[ 2];
+	r[ 1] = a[ 1] * b[ 0] + a[ 5] * b[ 1] + a[ 9] * b[ 2];
+	r[ 2] = a[ 2] * b[ 0] + a[ 6] * b[ 1] + a[10] * b[ 2];
+}
+
+void Default_Mat4MultiplyVec3_1(vec3_t r, mat4_t a, vec3_t b)
 {
 	r[ 0] = a[ 0] * b[ 0] + a[ 4] * b[ 1] + a[ 8] * b[ 2] + a[12];
 	r[ 1] = a[ 1] * b[ 0] + a[ 5] * b[ 1] + a[ 9] * b[ 2] + a[13];
 	r[ 2] = a[ 2] * b[ 0] + a[ 6] * b[ 1] + a[10] * b[ 2] + a[14];
 }
 
-void Mat4MultiplyVec4(vec4_t r, mat4_t a, vec4_t b)
+void Default_Mat4MultiplyVec3_1_ToVec4(vec4_t r, mat4_t a, vec3_t b)
+{
+	r[ 0] = a[ 0] * b[ 0] + a[ 4] * b[ 1] + a[ 8] * b[ 2] + a[12];
+	r[ 1] = a[ 1] * b[ 0] + a[ 5] * b[ 1] + a[ 9] * b[ 2] + a[13];
+	r[ 2] = a[ 2] * b[ 0] + a[ 6] * b[ 1] + a[10] * b[ 2] + a[14];
+	r[ 3] = a[ 3] * b[ 0] + a[ 7] * b[ 1] + a[11] * b[ 2] + a[15];
+}
+
+void Default_Mat4MultiplyVec4(vec4_t r, mat4_t a, vec4_t b)
 {
 	r[ 0] = a[ 0] * b[ 0] + a[ 4] * b[ 1] + a[ 8] * b[ 2] + a[12] * b[ 3];
 	r[ 1] = a[ 1] * b[ 0] + a[ 5] * b[ 1] + a[ 9] * b[ 2] + a[13] * b[ 3];
 	r[ 2] = a[ 2] * b[ 0] + a[ 6] * b[ 1] + a[10] * b[ 2] + a[14] * b[ 3];
 	r[ 3] = a[ 3] * b[ 0] + a[ 7] * b[ 1] + a[11] * b[ 2] + a[15] * b[ 3];
+}
+
+#ifdef __SSE2__
+#include <smmintrin.h>
+
+void SSE2_Mat4Multiply(mat4_t r, mat4_t a, mat4_t b)
+{
+	__m128 mr;
+	mr =                _mm_mul_ps(_mm_load1_ps(&b[ 0]), _mm_load_ps(&a[ 0]));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[ 1]), _mm_load_ps(&a[ 4])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[ 2]), _mm_load_ps(&a[ 8])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[ 3]), _mm_load_ps(&a[12])));
+
+	_mm_store_ps(&r[ 0], mr);
+
+	mr =                _mm_mul_ps(_mm_load1_ps(&b[ 4]), _mm_load_ps(&a[ 0]));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[ 5]), _mm_load_ps(&a[ 4])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[ 6]), _mm_load_ps(&a[ 8])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[ 7]), _mm_load_ps(&a[12])));
+
+	_mm_store_ps(&r[ 4], mr);
+
+	mr =                _mm_mul_ps(_mm_load1_ps(&b[ 8]), _mm_load_ps(&a[ 0]));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[ 9]), _mm_load_ps(&a[ 4])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[10]), _mm_load_ps(&a[ 8])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[11]), _mm_load_ps(&a[12])));
+
+	_mm_store_ps(&r[ 8], mr);
+
+	mr =                _mm_mul_ps(_mm_load1_ps(&b[12]), _mm_load_ps(&a[ 0]));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[13]), _mm_load_ps(&a[ 4])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[14]), _mm_load_ps(&a[ 8])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[15]), _mm_load_ps(&a[12])));
+
+	_mm_store_ps(&r[12], mr);
+}
+
+void SSE2_Mat4MultiplyVec3_0(vec3_t r, mat4_t a, vec3_t b)
+{
+	__m128 mr;
+	mr =                _mm_mul_ps(_mm_load1_ps(&b[0]), _mm_load_ps(&a[ 0]));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[1]), _mm_load_ps(&a[ 4])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[2]), _mm_load_ps(&a[ 8])));
+
+	Vec3Copy(r, (float *)&mr);
+}
+
+void SSE2_Mat4MultiplyVec3_1(vec3_t r, mat4_t a, vec3_t b)
+{
+	__m128 mr;
+	mr =                _mm_mul_ps(_mm_load1_ps(&b[0]), _mm_load_ps(&a[ 0]));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[1]), _mm_load_ps(&a[ 4])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[2]), _mm_load_ps(&a[ 8])));
+	mr = _mm_add_ps(mr, _mm_load_ps(&a[12]));
+
+	Vec3Copy(r, (float *)&mr);
+}
+
+void SSE2_Mat4MultiplyVec3_1_ToVec4(vec4_t r, mat4_t a, vec3_t b)
+{
+	__m128 mr;
+	mr =                _mm_mul_ps(_mm_load1_ps(&b[0]), _mm_load_ps(&a[ 0]));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[1]), _mm_load_ps(&a[ 4])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[2]), _mm_load_ps(&a[ 8])));
+	mr = _mm_add_ps(mr, _mm_load_ps(&a[12]));
+
+	_mm_store_ps(r, mr);
+}
+
+void SSE2_Mat4MultiplyVec4(vec4_t r, mat4_t a, vec4_t b)
+{
+	__m128 mr;
+	mr =                _mm_mul_ps(_mm_load1_ps(&b[0]), _mm_load_ps(&a[ 0]));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[1]), _mm_load_ps(&a[ 4])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[2]), _mm_load_ps(&a[ 8])));
+	mr = _mm_add_ps(mr, _mm_mul_ps(_mm_load1_ps(&b[3]), _mm_load_ps(&a[12])));
+
+	_mm_store_ps(r, mr);
+}
+
+#endif
+
+void (*Mat4Multiply)(mat4_t r, mat4_t a, mat4_t b)              = Default_Mat4Multiply;
+void (*Mat4MultiplyVec3_0)(vec3_t r, mat4_t a, vec3_t b)        = Default_Mat4MultiplyVec3_0;
+void (*Mat4MultiplyVec3_1)(vec3_t r, mat4_t a, vec3_t b)        = Default_Mat4MultiplyVec3_1;
+void (*Mat4MultiplyVec3_1_ToVec4)(vec4_t r, mat4_t a, vec3_t b) = Default_Mat4MultiplyVec3_1_ToVec4;
+void (*Mat4MultiplyVec4)(vec4_t r, mat4_t a, vec4_t b)          = Default_Mat4MultiplyVec4;
+
+void jrcMath_SetupSse2()
+{
+#ifdef __SSE2__
+	if( __builtin_cpu_supports("sse2"))
+	{
+		Mat4Multiply              = SSE2_Mat4Multiply;
+		Mat4MultiplyVec3_0        = SSE2_Mat4MultiplyVec3_0;
+		Mat4MultiplyVec3_1        = SSE2_Mat4MultiplyVec3_1;
+		Mat4MultiplyVec3_1_ToVec4 = SSE2_Mat4MultiplyVec3_1_ToVec4;
+		Mat4MultiplyVec4          = SSE2_Mat4MultiplyVec4;
+	}
+#endif
 }
 
 void Mat4InvertSimple(mat4_t r, mat4_t a)
@@ -502,8 +623,6 @@ void Mat4InvertSimple(mat4_t r, mat4_t a)
 	r[ 1] = a[ 4]; r[ 5] = a[ 5]; r[ 9] = a[ 6]; r[13] = -(r[ 0] * a[12] + r[ 4] * a[13] + r[ 8] * a[14]);
 	r[ 2] = a[ 8]; r[ 6] = a[ 9]; r[10] = a[10]; r[14] = -(r[ 0] * a[12] + r[ 4] * a[13] + r[ 8] * a[14]);
 	r[ 3] = 0.0f;  r[ 7] = 0.0f;  r[11] = 0.0f;  r[15] = 1.0f;
-	
-	
 }
 
 void Mat4Model(mat4_t r, vec3_t right, vec3_t up, vec3_t back, vec3_t pos)
@@ -1215,6 +1334,56 @@ vec_t CalcTangentSpace(vec3_t tangent, vec3_t bitangent, vec3_t normal, vec3_t s
 
 void QuatFromAxes(quat_t q, vec3_t x, vec3_t y, vec3_t z)
 {
+#if 0
+	// from https://d3cw3dd2w32x2b.cloudfront.net/wp-content/uploads/2015/01/matrix-to-quat.pdf
+	vec_t t;
+
+	if (z[2] < 0.0f)
+	{
+		if (x[0] > y[1])
+		{
+			t = 1.0f + x[0] - y[1] - z[2];
+			q[0] = t;
+			q[1] = x[1] + y[0];
+			q[2] = z[0] + x[2];
+			q[3] = y[2] - z[1];
+		}
+		else
+		{
+			t= 1.0f - x[0] + y[1] - z[2];
+			q[0] = x[1] + y[0];
+			q[1] = t;
+			q[2] = y[2] + z[1];
+			q[3] = z[0] - x[2];
+		}
+	}
+	else
+	{
+		if (x[0] < -y[1])
+		{
+			t = 1.0f - x[0] - y[1] + z[2];
+			q[0] = z[0] + x[2];
+			q[1] = y[2] + z[1];
+			q[2] = t;
+			q[3] = x[1] - y[0];
+		}
+		else
+		{
+			t = 1.0f + x[0] + y[1] + z[2];
+			q[0] = y[2] - z[1];
+			q[1] = z[0] - x[2];
+			q[2] = x[1] - y[0];
+			q[3] = t;
+		}
+	}
+
+	t = 0.5f / sqrt(t);
+
+	q[0] *= t;
+	q[1] *= t;
+	q[2] *= t;
+	q[3] *= t;
+#else
 	// from http://www.cg.info.hiroshima-cu.ac.jp/~miyazaki/knowledge/teche52.html
 	q[0] =  x[0] - y[1] - z[2] + 1.0f;
 	q[1] = -x[0] + y[1] - z[2] + 1.0f;
@@ -1229,6 +1398,7 @@ void QuatFromAxes(quat_t q, vec3_t x, vec3_t y, vec3_t z)
 	if (y[2] < z[1]) q[0] = -q[0];
 	if (z[0] < x[2]) q[1] = -q[1];
 	if (x[1] < y[0]) q[2] = -q[2];
+#endif
 }
 
 void AxesFromQuat(vec3_t x, vec3_t y, vec3_t z, quat_t q)
